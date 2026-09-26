@@ -6,6 +6,11 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+# macOS minutes are expensive: a newer push cancels the older build on the same branch.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
