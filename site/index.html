@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TaskDB — Todoist speed, Notion storage</title>
+    <meta name="description" content="A fast Mac to-do app that keeps every task in your own Notion workspace. Quick add, Today, Upcoming, recurring tasks, reminders. $29/year, 14-day free trial." />
+    <style>
+      :root {
+        --accent: #dc4c3e;
+        --bg: #ffffff;
+        --bg-soft: #fcfaf8;
+        --text: #202020;
+        --muted: #6b6b6b;
+        --line: #eeeeee;
+        --green: #058527;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #1a1a1a;
+          --bg-soft: #232323;
+          --text: #ececec;
+          --muted: #9a9a9a;
+          --line: #333;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font: 17px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+      a { color: inherit; }
+      .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+      header.nav { display: flex; justify-content: space-between; align-items: center; padding: 20px 0; }
+      .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 20px; text-decoration: none; }
+      .logo { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: var(--accent); color: #fff; }
+      .btn { display: inline-block; background: var(--accent); color: #fff; text-decoration: none; font-weight: 600; padding: 12px 22px; border-radius: 8px; }
+      .btn.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
+      .hero { text-align: center; padding: 56px 0 32px; }
+      .hero h1 { font-size: clamp(34px, 6vw, 56px); line-height: 1.1; margin: 0 0 16px; letter-spacing: -0.02em; }
+      .hero p { font-size: 20px; color: var(--muted); max-width: 640px; margin: 0 auto 28px; }
+      .hero .ctas { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+      .small { font-size: 14px; color: var(--muted); }
+      .mock { margin: 40px auto 0; max-width: 880px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.12); background: var(--bg); text-align: left; }
+      .mock-bar { background: var(--bg-soft); padding: 10px 14px; border-bottom: 1px solid var(--line); display: flex; gap: 6px; }
+      .mock-bar i { width: 11px; height: 11px; border-radius: 50%; background: #ddd; display: block; }
+      .mock-body { display: grid; grid-template-columns: 200px 1fr; min-height: 300px; font-size: 14px; }
+      .mock-side { background: var(--bg-soft); padding: 14px; border-right: 1px solid var(--line); }
+      .mock-side div { padding: 5px 8px; border-radius: 6px; }
+      .mock-side .on { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
+      .mock-main { padding: 18px 26px; }
+      .mock-main h3 { margin: 0 0 10px; font-size: 20px; }
+      .qa { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-weight: 600; }
+      .qa .chips { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; font-weight: 400; font-size: 12px; }
+      .qa .chips span { border: 1px solid var(--line); border-radius: 5px; padding: 0 6px; }
+      .task { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+      .c { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid #999; flex-shrink: 0; margin-top: 3px; }
+      .c.p1 { border-color: #d1453b; } .c.p2 { border-color: #eb8909; }
+      .meta { font-size: 12px; color: var(--green); }
+      section { padding: 56px 0; }
+      h2 { font-size: 32px; margin: 0 0 8px; letter-spacing: -0.01em; text-align: center; }
+      .sub { text-align: center; color: var(--muted); margin: 0 auto 36px; max-width: 620px; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; }
+      .card { border: 1px solid var(--line); border-radius: 12px; padding: 20px; background: var(--bg); }
+      .card h3 { margin: 0 0 6px; font-size: 17px; }
+      .card p { margin: 0; color: var(--muted); font-size: 15px; }
+      .soft { background: var(--bg-soft); }
+      .steps { counter-reset: s; list-style: none; padding: 0; max-width: 640px; margin: 0 auto; }
+      .steps li { counter-increment: s; padding: 14px 0 14px 48px; position: relative; border-bottom: 1px solid var(--line); }
+      .steps li::before { content: counter(s); position: absolute; left: 0; top: 12px; width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-weight: 700; }
+      .price { max-width: 420px; margin: 0 auto; text-align: center; border: 2px solid var(--accent); border-radius: 16px; padding: 32px 24px; background: var(--bg); }
+      .price .amt { font-size: 52px; font-weight: 800; }
+      .price ul { text-align: left; padding-left: 20px; margin: 20px 0 24px; }
+      details { border-bottom: 1px solid var(--line); padding: 14px 0; max-width: 720px; margin: 0 auto; }
+      summary { font-weight: 600; cursor: pointer; }
+      details p { color: var(--muted); margin: 8px 0 0; }
+      footer { padding: 40px 0; text-align: center; color: var(--muted); font-size: 14px; }
+      @media (max-width: 640px) {
+        .mock-body { grid-template-columns: 1fr; }
+        .mock-side { display: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="nav">
+        <a class="brand" href="#"><span class="logo">✓</span> TaskDB</a>
+        <a class="btn" href="#pricing">Try free for 14 days</a>
+      </header>
+
+      <div class="hero">
+        <h1>Todoist speed.<br />Your Notion database.</h1>
+        <p>A fast Mac to-do app that stores every task in your own Notion workspace. Capture in a second, plan your day, and keep everything next to your notes.</p>
+        <div class="ctas">
+          <a class="btn" href="#pricing">Download for Mac</a>
+          <a class="btn ghost" href="#how">How it works</a>
+        </div>
+        <p class="small">14-day free trial · no card needed · macOS 11+</p>
+
+        <div class="mock" aria-hidden="true">
+          <div class="mock-bar"><i></i><i></i><i></i></div>
+          <div class="mock-body">
+            <div class="mock-side">
+              <div>📥 Inbox</div>
+              <div class="on">📅 Today</div>
+              <div>🗓 Upcoming</div>
+              <div>🏷 Filters &amp; Labels</div>
+              <div style="margin-top: 12px; font-size: 12px; font-weight: 700; color: var(--muted)">My Projects</div>
+              <div>🔵 Work</div>
+              <div>🟢 Home</div>
+            </div>
+            <div class="mock-main">
+              <h3>Today</h3>
+              <div class="qa">
+                Call Ravi tomorrow 5pm #Sales +Ravi @urgent p1
+                <div class="chips"><span>📅 Tomorrow 5pm</span><span># Sales</span><span>👤 Ravi</span><span>@urgent</span><span style="color:#d1453b">p1</span></div>
+              </div>
+              <div class="task"><span class="c p1"></span><div>Send Q3 report<div class="meta">📅 Today 5pm</div></div></div>
+              <div class="task"><span class="c p2"></span><div>Prepare board deck<div class="meta">📅 Today · ⑂ 1/2</div></div></div>
+              <div class="task"><span class="c"></span><div>Water plants<div class="meta">📅 Today 🔁</div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <section>
+      <div class="wrap">
+        <h2>Everything you liked about Todoist</h2>
+        <p class="sub">…without moving your life out of Notion.</p>
+        <div class="grid">
+          <div class="card"><h3>⚡ Type it, done</h3><p>“Pay rent every month p1 #Home” — dates, projects, labels, people and priority are picked up as you type.</p></div>
+          <div class="card"><h3>📅 Today &amp; Upcoming</h3><p>Overdue at the top, today’s plan below, and the next two weeks laid out day by day.</p></div>
+          <div class="card"><h3>🔁 Recurring tasks</h3><p>Every weekday, every 2 weeks, every Mon and Thu. Complete one and the next is scheduled — something Notion can’t do on its own.</p></div>
+          <div class="card"><h3>⌘⇧Space quick add</h3><p>Capture from any app without switching windows. Reminders pop up as native Mac notifications.</p></div>
+          <div class="card"><h3>🏷 Labels, people, filters</h3><p>Tag with @labels, assign +people, and save filters like <code>p1 &amp; (today | overdue)</code>.</p></div>
+          <div class="card"><h3>⌨️ Keyboard first</h3><p>J/K to move, E to complete, 1–4 for priority, T for today. Your hands never leave the keys.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="soft" id="how">
+      <div class="wrap">
+        <h2>Your data stays yours</h2>
+        <p class="sub">TaskDB talks straight to Notion from your Mac. There is no TaskDB server, no account, and nothing to trust but Notion itself.</p>
+        <ol class="steps">
+          <li><b>Connect Notion.</b> Paste a Notion integration key — it’s stored in your Mac’s Keychain.</li>
+          <li><b>Pick a page.</b> TaskDB creates “TaskDB Tasks” and “TaskDB Projects” databases there.</li>
+          <li><b>Work at full speed.</b> Everything opens instantly from a local copy and syncs to Notion in the background — even offline.</li>
+          <li><b>Use Notion too.</b> Edit tasks in Notion, build your own views, link them to notes. Changes flow back to TaskDB within seconds.</li>
+        </ol>
+      </div>
+    </section>
+
+    <section id="pricing">
+      <div class="wrap">
+        <h2>Simple pricing</h2>
+        <p class="sub">One plan. Try it free for 14 days first.</p>
+        <div class="price">
+          <div class="amt">$29<span style="font-size: 18px; font-weight: 500; color: var(--muted)"> / year</span></div>
+          <p class="small">Less than $2.50 a month · cancel anytime</p>
+          <ul>
+            <li>Every feature, every update for the year</li>
+            <li>Use on 2 Macs</li>
+            <li>No limits on tasks, projects or filters</li>
+            <li>If you stop paying, your tasks stay in Notion</li>
+          </ul>
+          <a class="btn" href="#" data-download>Download free trial</a>
+          <p class="small" style="margin-top: 12px">Already bought? Paste your key in TaskDB → Settings → License.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="soft">
+      <div class="wrap">
+        <h2>Questions</h2>
+        <details><summary>Do I need a paid Notion plan?</summary><p>No. TaskDB works with free Notion workspaces.</p></details>
+        <details><summary>Where are my tasks stored?</summary><p>In two ordinary Notion databases in your workspace, plus a local cache on your Mac so the app is instant and works offline. TaskDB has no servers.</p></details>
+        <details><summary>What happens when my year ends?</summary><p>Renew to keep editing. If you don’t, TaskDB turns read-only — and all your tasks are still in Notion, where you can keep using them.</p></details>
+        <details><summary>Can I use my existing Notion task database?</summary><p>Not yet. TaskDB creates its own databases so it can guarantee sync works. Importing existing tasks is on the roadmap.</p></details>
+        <details><summary>Is there an iPhone app?</summary><p>Not yet — use Notion’s mobile app on the go; everything syncs. A TaskDB mobile app is planned.</p></details>
+        <details><summary>Windows?</summary><p>Mac first. Windows is planned for a later version.</p></details>
+      </div>
+    </section>
+
+    <footer>
+      <div class="wrap">TaskDB is an independent app and is not affiliated with Notion Labs, Inc. or Doist.</div>
+    </footer>
+  </body>
+</html>
