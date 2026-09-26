@@ -12,8 +12,9 @@ Sold as a yearly license. Nothing is hosted by the seller.
 | Mobile | v2. Until then, use Notion mobile |
 | Hosting | None. App talks to Notion API and Lemon Squeezy directly |
 | Buyer | Solo Notion users |
-| Pricing | Pay once per year; renew for next year |
+| Pricing | $29/year, 14-day free trial; renew each year |
 | Store | Lemon Squeezy (subscriptions, license keys, VAT) |
+| Signing | Phase 1: ad-hoc signed test DMG. Apple Developer account ($99/yr) before public launch |
 | Hierarchy | Project → Task → Sub-task |
 | People | Single-select property on Task |
 | Notion setup | App auto-creates the databases on first run |
@@ -40,14 +41,17 @@ Sold as a yearly license. Nothing is hosted by the seller.
 - **Notion auth:** the buyer creates an internal integration and pastes its token
   - Public OAuth would need a server (client secret + redirect), so it's excluded
   - Token is stored in the macOS Keychain
-- **Setup flow:** paste token → share one parent page with the integration → app creates the Tasks, Projects and Filters databases
+- **Setup flow:** paste token → share one parent page with the integration → app creates the Tasks and Projects databases
 - **Sync:** local-first, designed around Notion's rate limit — see next section
 - **License:** Lemon Squeezy License API (activate / validate)
   - Checked at launch and daily
   - 7-day offline grace period
   - Read-only mode after the license expires. Data stays safe in Notion
 - **Updates:** Tauri updater. Update files are hosted on GitHub Releases (free, not your server)
-- **Distribution:** signed and notarized `.dmg` (needs an Apple Developer account, $99/yr)
+- **Distribution:**
+  - Now: ad-hoc signed `.dmg` built by GitHub Actions (`.github/workflows/build-macos.yml`) for testing
+  - Launch: signed and notarized `.dmg` (needs an Apple Developer account, $99/yr)
+- **Trial:** 14 days from first connect, no card needed; after that a Lemon Squeezy key is required (read-only without one)
 
 ## Notion schema (auto-created)
 
@@ -72,10 +76,7 @@ Sold as a yearly license. Nothing is hosted by the seller.
 - Order (number)
 - Tasks (relation)
 
-**Filters**
-- Name
-- Query (text)
-- Order (number)
+Saved filters, extra People and settings are kept locally (not in Notion) in v1.
 
 ## Sync & rate-limit design
 
@@ -103,17 +104,18 @@ Notion allows ~3 requests/sec per integration, and each call takes 0.5–2s. The
 ## Open items
 
 - [x] Name: TaskDB
-- [ ] Set yearly price (suggested: $39/yr)
-- [ ] Apple Developer account ($99/yr)
+- [x] Price: $29/yr with 14-day trial
+- [ ] Apple Developer account ($99/yr) — after DMG testing
+- [ ] First live test against a real Notion workspace (database-creation request shape unverified)
 - [ ] Lemon Squeezy store + product setup
 
 ## Build plan
 
 1. ✅ Sync engine: rate limiter, outbox, delta pull, reconcile (17 tests)
-2. Tauri + React scaffold; SQLite store; auto-create schema
-3. Views: Inbox/Today/Upcoming/Project; task editor; sub-tasks
-4. Quick-add parser; labels/people/priority; filters
-5. Recurrence; reminders; global hotkey; menu bar
-6. Themes; keyboard shortcuts; onboarding wizard
-7. Lemon Squeezy licensing; signing/notarization; auto-update
+2. ✅ Tauri + React scaffold; SQLite store; auto-create schema
+3. ✅ Views: Inbox/Today/Upcoming/Project; task editor; sub-tasks
+4. ✅ Quick-add parser; labels/people/priority; filters
+5. ✅ Recurrence; reminders; global hotkey; menu bar
+6. ✅ Themes; keyboard shortcuts; onboarding wizard
+7. Lemon Squeezy licensing + 14-day trial; signing/notarization; auto-update
 8. Landing page copy + Lemon Squeezy listing

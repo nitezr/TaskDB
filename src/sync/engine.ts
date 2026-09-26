@@ -73,6 +73,15 @@ export class SyncEngine {
     this.changed();
   }
 
+  /** Re-sends a task that Notion rejected earlier (after the user fixed it). */
+  retry(id: string): void {
+    const task = this.opts.store.getTask(id);
+    if (!task) return;
+    this.opts.store.putTask({ ...task, syncError: null });
+    this.outbox.enqueue({ kind: task.notionId ? "update" : "create", taskId: id, fields: pickFields(task) });
+    this.changed();
+  }
+
   // ---- Push ----
 
   /** Sends queued changes one at a time through the shared rate limiter. */

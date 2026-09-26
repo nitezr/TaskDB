@@ -14,9 +14,13 @@ export class FakeNotion {
     return new Date(this.minute).toISOString();
   }
 
-  addPage(properties: Record<string, any>): NotionPage {
+  /** Data source each page belongs to. */
+  pageSource = new Map<string, string>();
+
+  addPage(properties: Record<string, any>, dataSourceId = "ds"): NotionPage {
     const page: NotionPage = { id: `page-${++this.seq}`, last_edited_time: this.editedAt(), properties };
     this.pages.set(page.id, page);
+    this.pageSource.set(page.id, dataSourceId);
     return page;
   }
 
@@ -42,7 +46,7 @@ export class FakeNotion {
     const json = (data: unknown) => new Response(JSON.stringify(data), { status: 200 });
 
     if (init.method === "POST" && path === "/pages") {
-      return json(this.addPage(body.properties));
+      return json(this.addPage(body.properties, body.parent?.data_source_id));
     }
     const pageMatch = path.match(/^\/pages\/(.+)$/);
     if (init.method === "PATCH" && pageMatch) {
@@ -56,9 +60,22 @@ export class FakeNotion {
       }
       return json(page);
     }
-    if (init.method === "POST" && path.endsWith("/query")) {
+    if (init.method === "POST" && path === "/search") {
+      if (body.filter?.value === "data_source") {
+        return json({
+          results: [
+            { id: "ds", title: [{ plain_text: "TaskDB Tasks" }] },
+            { id: "projects", title: [{ plain_text: "TaskDB Projects" }] },
+          ],
+        });
+      }
+      return json({ results: [{ id: "root", parent: { type: "workspace" }, properties: { title: { type: "title", title: [{ plain_text: "My Workspace" }] } } }] });
+    }
+    const queryMatch = path.match(/^\/data_sources\/(.+)\/query$/);
+    if (init.method === "POST" && queryMatch) {
       const since = body.filter?.last_edited_time?.on_or_after;
       const all = [...this.pages.values()]
+        .filter((p) => this.pageSource.get(p.id) === queryMatch[1])
         .filter((p) => !p.in_trash)
         .filter((p) => !since || p.last_edited_time >= since)
         .sort((a, b) => a.last_edited_time.localeCompare(b.last_edited_time));

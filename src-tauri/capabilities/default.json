@@ -1,0 +1,21 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permissions for the TaskDB main window",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-show",
+    "core:window:allow-unminimize",
+    "core:window:allow-set-focus",
+    {
+      "identifier": "http:default",
+      "allow": [{ "url": "https://api.notion.com/*" }, { "url": "https://api.lemonsqueezy.com/*" }]
+    },
+    "sql:default",
+    "sql:allow-execute",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister",
+    "notification:default"
+  ]
+}
