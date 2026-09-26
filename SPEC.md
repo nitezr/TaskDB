@@ -36,7 +36,7 @@ Sold as a yearly license. Nothing is hosted by the seller.
 ## Architecture
 
 - **Frontend:** React + TypeScript + Tailwind, running inside Tauri
-- **Backend (local):** Rust layer in Tauri. Calls the Notion API (no CORS issue) and caches data in a local SQLite database
+- **Sync engine:** TypeScript. Calls Notion through the Tauri HTTP plugin (no CORS issue) and caches data in local SQLite (tauri-plugin-sql)
 - **Notion auth:** the buyer creates an internal integration and pastes its token
   - Public OAuth would need a server (client secret + redirect), so it's excluded
   - Token is stored in the macOS Keychain
