@@ -4,6 +4,7 @@ import type { Priority, TaskFields } from "../types";
 import { Browse } from "./components/Browse";
 import { LicenseBanner, Paywall } from "./components/License";
 import { Onboarding } from "./components/Onboarding";
+import { ProjectHeader } from "./components/ProjectHeader";
 import { QuickAdd } from "./components/QuickAdd";
 import { SettingsPanel } from "./components/Settings";
 import { Sidebar } from "./components/Sidebar";
@@ -181,13 +182,13 @@ function Main() {
           if (btn && row) {
             e.stopPropagation();
             const t = app.task(row.dataset.id!);
-            if (t && !t.done) completeWithUndo(t.id);
+            if (t) t.done ? app.reopen(t.id) : completeWithUndo(t.id);
           }
         }}
       >
         <LicenseBanner onOpen={() => setPaywall(true)} />
         <header className="view-header">
-          <h1>{vm.title}</h1>
+          {view.kind === "project" ? <ProjectHeader id={view.id} onGone={() => navigate({ kind: "inbox" })} /> : <h1>{vm.title}</h1>}
           {view.kind === "today" && <span className="muted">{new Date().toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}</span>}
         </header>
         {view.kind === "browse" ? (

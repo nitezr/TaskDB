@@ -58,6 +58,36 @@ export function Browse({ onNavigate }: { onNavigate: (v: View) => void }) {
       </section>
 
       <section>
+        <h3>History</h3>
+        <ul className="browse-list">
+          <li onClick={() => onNavigate({ kind: "completed" })}>
+            <span className="nav-icon">✓</span>
+            <span className="grow">Completed tasks</span>
+            <span className="count">{app.tasks().filter((t) => t.done).length || ""}</span>
+          </li>
+        </ul>
+      </section>
+
+      {app.projects.some((p) => p.archived) && (
+        <section>
+          <h3>Archived projects</h3>
+          <ul className="browse-list">
+            {app.projects
+              .filter((p) => p.archived)
+              .map((p) => (
+                <li key={p.id}>
+                  <span className={`dot c-${p.color}`} />
+                  <span className="grow">{p.name}</span>
+                  <button className="link" onClick={() => void app.updateProject(p.id, { archived: false })}>
+                    Unarchive
+                  </button>
+                </li>
+              ))}
+          </ul>
+        </section>
+      )}
+
+      <section>
         <h3>Labels</h3>
         <ul className="browse-list">
           {app.labels().map((l) => (

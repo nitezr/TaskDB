@@ -12,6 +12,7 @@ export type View =
   | { kind: "person"; name: string }
   | { kind: "filter"; id: string }
   | { kind: "search"; query: string }
+  | { kind: "completed" }
   | { kind: "browse" };
 
 export interface TaskNode {
@@ -25,6 +26,8 @@ export interface Section {
   nodes: TaskNode[];
   /** Defaults applied to tasks added inline in this section. */
   addDefaults?: Partial<TaskFields>;
+  /** Hide the inline "Add task" button. */
+  noAdd?: boolean;
 }
 
 export interface ViewModel {
@@ -67,7 +70,7 @@ export function buildView(view: View, app: AppController, now = new Date()): Vie
       const overdue = open.filter((t) => t.due && dueDay(t.due) < today).sort(byDue);
       const todays = open.filter((t) => t.due && dueDay(t.due) === today).sort(byDue);
       const sections: Section[] = [];
-      if (overdue.length) sections.push({ title: "Overdue", tone: "overdue", nodes: flat(overdue) });
+      if (overdue.length) sections.push({ title: "Overdue", tone: "overdue", noAdd: true, nodes: flat(overdue) });
       sections.push({ title: overdue.length ? dayHeading(today, now) : undefined, nodes: flat(todays) });
       return { title: "Today", tree: false, addDefaults: { due: today }, sections };
     }
@@ -76,7 +79,7 @@ export function buildView(view: View, app: AppController, now = new Date()): Vie
       const sections: Section[] = [];
       const start = startOfDay(now);
       const overdue = open.filter((t) => t.due && dueDay(t.due) < today).sort(byDue);
-      if (overdue.length) sections.push({ title: "Overdue", tone: "overdue", nodes: flat(overdue) });
+      if (overdue.length) sections.push({ title: "Overdue", tone: "overdue", noAdd: true, nodes: flat(overdue) });
       for (let i = 0; i < 14; i++) {
         const day = toDateStr(addDays(start, i));
         sections.push({
@@ -87,7 +90,7 @@ export function buildView(view: View, app: AppController, now = new Date()): Vie
       }
       const horizon = toDateStr(addDays(start, 14));
       const later = open.filter((t) => t.due && dueDay(t.due) >= horizon).sort(byDue);
-      if (later.length) sections.push({ title: "Later", nodes: flat(later) });
+      if (later.length) sections.push({ title: "Later", noAdd: true, nodes: flat(later) });
       return { title: "Upcoming", tree: false, addDefaults: { due: today }, sections };
     }
 
@@ -133,6 +136,24 @@ export function buildView(view: View, app: AppController, now = new Date()): Vie
       const q = view.query.trim().toLowerCase();
       const hits = q ? open.filter((t) => t.title.toLowerCase().includes(q)).sort(byDue) : [];
       return { title: `Search: ${view.query}`, tree: false, addDefaults: {}, sections: [{ nodes: flat(hits) }] };
+    }
+
+    case "completed": {
+      const done = app
+        .tasks()
+        .filter((t) => t.done)
+        .sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? "") || byOrder(a, b));
+      const byDay = new Map<string, Task[]>();
+      for (const t of done) {
+        const day = t.completedAt ? dueDay(t.completedAt) : "Earlier";
+        byDay.set(day, [...(byDay.get(day) ?? []), t]);
+      }
+      const sections: Section[] = [...byDay].map(([day, tasks]) => ({
+        title: day === "Earlier" ? day : dayHeading(day, now),
+        noAdd: true,
+        nodes: flat(tasks),
+      }));
+      return { title: "Completed", tree: false, addDefaults: {}, sections };
     }
 
     case "browse":

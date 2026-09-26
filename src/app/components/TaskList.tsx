@@ -38,7 +38,7 @@ export function TaskList({ vm, selected, collapsed, onSelect, onOpen, onToggleCo
                 />
               ))}
             </ul>
-            {section.tone !== "overdue" &&
+            {!section.noAdd &&
               (adding === i ? (
                 <QuickAdd variant="inline" defaults={{ ...vm.addDefaults, ...section.addDefaults }} onDone={() => setAdding(null)} />
               ) : (
@@ -134,7 +134,7 @@ function TaskRow({ task, showProject, subCount }: { task: Task; showProject: boo
         <span>✓</span>
       </button>
       <div className="task-body">
-        <div className="task-title">{task.title}</div>
+        <div className={`task-title ${task.done ? "strike" : ""}`}>{task.title}</div>
         <div className="task-meta">
           {task.due && (
             <span className={`due ${dueClass}`}>

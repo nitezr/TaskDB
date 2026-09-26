@@ -240,7 +240,13 @@ export function TaskDetail({ id, onClose, onOpen }: Props) {
       )}
 
       <footer>
-        <span className="muted small">{task.notionId ? "Synced with Notion" : task.syncError ? "Not synced" : "Syncing…"}</span>
+        {task.notionId ? (
+          <button className="link small" onClick={() => void app.platform.openUrl(notionUrl(task.notionId!))}>
+            Open in Notion ↗
+          </button>
+        ) : (
+          <span className="muted small">{task.syncError ? "Not synced" : "Syncing…"}</span>
+        )}
         <button
           className="danger"
           onClick={() => {
@@ -261,4 +267,8 @@ function toInputValue(iso: string): string {
   const d = parseDue(iso);
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function notionUrl(pageId: string): string {
+  return `https://www.notion.so/${pageId.replace(/-/g, "")}`;
 }

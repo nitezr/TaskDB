@@ -302,6 +302,7 @@ export class AppController {
   }
 
   async updateProject(id: string, fields: Partial<Pick<Project, "name" | "color" | "archived">>): Promise<void> {
+    if (!this.guard()) return;
     this.projects = this.projects.map((p) => (p.id === id ? { ...p, ...fields } : p));
     this.store.setMeta("projects", JSON.stringify(this.projects));
     this.emit();

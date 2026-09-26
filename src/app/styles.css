@@ -877,3 +877,21 @@ main {
   color: var(--p1);
   background: color-mix(in srgb, var(--p1) 10%, transparent);
 }
+.project-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+.project-header h1 {
+  cursor: text;
+}
+.project-name-input {
+  font-size: 22px;
+  font-weight: 700;
+  padding: 0 4px;
+}
+.color-select {
+  font-size: 12px;
+  padding: 2px 4px;
+}
