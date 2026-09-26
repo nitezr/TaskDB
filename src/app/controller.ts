@@ -8,6 +8,15 @@ import type { Store } from "../store/store";
 import { SyncEngine } from "../sync/engine";
 import { SyncScheduler } from "../sync/scheduler";
 import type { Task, TaskFields } from "../types";
+import {
+  canEdit,
+  computeState,
+  LemonSqueezy,
+  LicenseError,
+  type LicenseRecord,
+  type LicenseState,
+  VALIDATE_EVERY_MS,
+} from "../license/license";
 import type { Platform } from "./platform";
 
 export interface SavedFilter {
@@ -50,6 +59,11 @@ export class AppController {
   private timers: ReturnType<typeof setInterval>[] = [];
   /** Open quick add; set by the UI. */
   onQuickAdd: () => void = () => {};
+  /** Show the buy/activate dialog; set by the UI. */
+  onPaywall: () => void = () => {};
+
+  private trialStartedAt = Date.now();
+  private license: LicenseRecord | null = null;
 
   constructor(readonly platform: Platform) {}
 
@@ -57,7 +71,8 @@ export class AppController {
 
   async boot(): Promise<void> {
     this.store = await this.platform.openStore();
-    const token = await this.platform.getToken();
+    await this.loadLicense();
+    const token = await this.platform.secureGet("notion-token");
     const ids = this.workspaceIds();
     if (token && ids) this.start(token, ids);
     else this.setPhase("connect");
@@ -94,6 +109,8 @@ export class AppController {
     this.timers.push(setInterval(() => void this.refreshProjects(), PROJECT_REFRESH_MS));
     this.timers.push(setInterval(() => this.checkReminders(), 30_000));
     this.timers.push(setInterval(() => this.updateActivity(), 60_000));
+    this.timers.push(setInterval(() => void this.revalidate(), VALIDATE_EVERY_MS / 4));
+    void this.revalidate();
     this.setPhase("ready");
   }
 
@@ -115,7 +132,7 @@ export class AppController {
     token = token.trim();
     const client = new NotionClient({ token, fetch: this.platform.fetch });
     const ids = "existing" in target ? target.existing : await createWorkspace(client, target.parentPageId);
-    await this.platform.setToken(token);
+    await this.platform.secureSet("notion-token", token);
     this.store.setMeta("workspace", JSON.stringify(ids));
     this.start(token, ids);
   }
@@ -123,7 +140,7 @@ export class AppController {
   async disconnect(): Promise<void> {
     this.scheduler?.stop();
     this.timers.forEach(clearInterval);
-    await this.platform.clearToken();
+    await this.platform.secureDelete("notion-token");
     await this.store.clear?.();
     window.location.reload();
   }
@@ -182,6 +199,7 @@ export class AppController {
 
   /** Parses quick-add text and creates the task. Unknown #projects are created in Notion. */
   async quickAdd(text: string, defaults: Partial<TaskFields> = {}): Promise<Task | null> {
+    if (!this.guard()) return null;
     const r = parseQuickAdd(text, { projects: this.projects.map((p) => p.name), people: this.people() });
     if (!r.title) return null;
     let projectId = defaults.projectId ?? null;
@@ -201,7 +219,8 @@ export class AppController {
     });
   }
 
-  createTask(fields: Partial<TaskFields>): Task {
+  createTask(fields: Partial<TaskFields>): Task | null {
+    if (!this.guard()) return null;
     const siblings = this.tasks().filter((t) => t.projectId === (fields.projectId ?? null) && t.parentId === (fields.parentId ?? null));
     const order = siblings.reduce((m, t) => Math.max(m, t.order), 0) + 1;
     const task = this.engine!.createTask({ order, ...fields });
@@ -210,6 +229,7 @@ export class AppController {
   }
 
   updateTask(id: string, fields: Partial<TaskFields>): void {
+    if (!this.guard()) return;
     this.engine!.updateTask(id, fields);
     this.afterLocalWrite();
   }
@@ -241,6 +261,7 @@ export class AppController {
   }
 
   deleteTask(id: string): void {
+    if (!this.guard()) return;
     for (const sub of this.tasks().filter((t) => t.parentId === id)) this.deleteTask(sub.id);
     this.engine!.deleteTask(id);
     this.afterLocalWrite();
@@ -271,6 +292,7 @@ export class AppController {
   }
 
   async addProject(name: string, color = "gray"): Promise<Project> {
+    if (!this.guard()) throw new Error("TaskDB is read-only until you activate a license.");
     const order = this.projects.reduce((m, p) => Math.max(m, p.order), 0) + 1;
     const project = await this.projectsApi!.create(name, color, order);
     this.projects = [...this.projects, project];
@@ -301,6 +323,61 @@ export class AppController {
   saveSettings(settings: Settings): void {
     this.store.setMeta("settings", JSON.stringify(settings));
     this.emit();
+  }
+
+  // ---- License ----
+
+  licenseState(): LicenseState {
+    return computeState(this.trialStartedAt, this.license, Date.now());
+  }
+
+  licenseKey(): string | null {
+    return this.license?.key ?? null;
+  }
+
+  /** Writes are blocked once the trial or license has ended; tasks stay readable. */
+  private guard(): boolean {
+    if (canEdit(this.licenseState())) return true;
+    this.onPaywall();
+    return false;
+  }
+
+  private async loadLicense(): Promise<void> {
+    const started = await this.platform.secureGet("trial-start").catch(() => null);
+    if (started && Number.isFinite(Number(started))) this.trialStartedAt = Number(started);
+    else await this.platform.secureSet("trial-start", String(this.trialStartedAt)).catch(() => {});
+    const raw = await this.platform.secureGet("license").catch(() => null);
+    this.license = raw ? JSON.parse(raw) : null;
+  }
+
+  private async saveLicense(record: LicenseRecord | null): Promise<void> {
+    this.license = record;
+    if (record) await this.platform.secureSet("license", JSON.stringify(record));
+    else await this.platform.secureDelete("license");
+    this.emit();
+  }
+
+  async activateLicense(key: string): Promise<void> {
+    const ls = new LemonSqueezy(this.platform.fetch);
+    await this.saveLicense(await ls.activate(key, instanceName()));
+  }
+
+  async deactivateLicense(): Promise<void> {
+    if (!this.license) return;
+    await new LemonSqueezy(this.platform.fetch).deactivate(this.license);
+    await this.saveLicense(null);
+  }
+
+  /** Daily check so renewals, refunds and lapsed subscriptions are picked up. */
+  async revalidate(force = false): Promise<void> {
+    if (!this.license) return;
+    if (!force && Date.now() - this.license.lastValidatedAt < VALIDATE_EVERY_MS) return;
+    try {
+      await this.saveLicense(await new LemonSqueezy(this.platform.fetch).validate(this.license));
+    } catch (e) {
+      // Offline: keep the old record; the grace period counts down from lastValidatedAt.
+      if (e instanceof LicenseError && e.definitive) await this.saveLicense({ ...this.license, status: "disabled" });
+    }
   }
 
   // ---- Background ----
@@ -342,6 +419,10 @@ const DEFAULT_FILTERS: SavedFilter[] = [
   { id: "f-waiting", name: "Waiting on others", query: "@waiting" },
   { id: "f-nodate", name: "No due date", query: "no date" },
 ];
+
+function instanceName(): string {
+  return `TaskDB on ${navigator.platform || "Mac"} (${new Date().toISOString().slice(0, 10)})`;
+}
 
 function uniqueSorted(xs: string[]): string[] {
   return [...new Set(xs)].sort((a, b) => a.localeCompare(b));

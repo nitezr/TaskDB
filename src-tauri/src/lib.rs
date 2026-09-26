@@ -3,30 +3,35 @@ use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, WindowEvent};
 
 const KEYCHAIN_SERVICE: &str = "app.taskdb.desktop";
-const KEYCHAIN_ACCOUNT: &str = "notion-token";
+/// Only these Keychain items can be touched from the web layer.
+const KEYCHAIN_ACCOUNTS: &[&str] = &["notion-token", "license", "trial-start"];
 
-fn keychain() -> Result<keyring::Entry, String> {
-    keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT).map_err(|e| e.to_string())
+fn keychain(account: &str) -> Result<keyring::Entry, String> {
+    if !KEYCHAIN_ACCOUNTS.contains(&account) {
+        return Err(format!("unknown keychain item: {account}"));
+    }
+    keyring::Entry::new(KEYCHAIN_SERVICE, account).map_err(|e| e.to_string())
 }
 
-/// The Notion token lives in the macOS Keychain, never in the app's files.
+/// Secrets (Notion token, license, trial start) live in the macOS Keychain,
+/// so they survive reinstalls and never sit in the app's files.
 #[tauri::command]
-fn get_token() -> Result<Option<String>, String> {
-    match keychain()?.get_password() {
-        Ok(token) => Ok(Some(token)),
+fn secure_get(account: String) -> Result<Option<String>, String> {
+    match keychain(&account)?.get_password() {
+        Ok(value) => Ok(Some(value)),
         Err(keyring::Error::NoEntry) => Ok(None),
         Err(e) => Err(e.to_string()),
     }
 }
 
 #[tauri::command]
-fn set_token(token: String) -> Result<(), String> {
-    keychain()?.set_password(&token).map_err(|e| e.to_string())
+fn secure_set(account: String, value: String) -> Result<(), String> {
+    keychain(&account)?.set_password(&value).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn clear_token() -> Result<(), String> {
-    match keychain()?.delete_credential() {
+fn secure_delete(account: String) -> Result<(), String> {
+    match keychain(&account)?.delete_credential() {
         Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
         Err(e) => Err(e.to_string()),
     }
@@ -47,7 +52,8 @@ pub fn run() {
         .plugin(tauri_plugin_sql::Builder::new().build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
-        .invoke_handler(tauri::generate_handler![get_token, set_token, clear_token])
+        .plugin(tauri_plugin_opener::init())
+        .invoke_handler(tauri::generate_handler![secure_get, secure_set, secure_delete])
         .setup(|app| {
             let open = MenuItem::with_id(app, "open", "Open TaskDB", true, None::<&str>)?;
             let quick = MenuItem::with_id(app, "quick", "Quick Add…", true, None::<&str>)?;

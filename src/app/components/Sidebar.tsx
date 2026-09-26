@@ -2,6 +2,7 @@ import { useState } from "react";
 import { PROJECT_COLORS } from "../../notion/setup";
 import { useApp } from "../hooks";
 import { countFor, sameView, type View } from "../views";
+import { describeLicense } from "./License";
 
 interface Props {
   view: View;
@@ -16,6 +17,7 @@ export function Sidebar({ view, onNavigate, onQuickAdd, onSettings, searchRef }:
   const [newProject, setNewProject] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const status = app.syncStatus();
+  const license = app.licenseState();
 
   const item = (v: View, icon: string, label: string, count?: number, dot?: string) => (
     <button key={label} className={`nav ${sameView(v, view) ? "active" : ""}`} onClick={() => onNavigate(v)}>
@@ -95,7 +97,13 @@ export function Sidebar({ view, onNavigate, onQuickAdd, onSettings, searchRef }:
       )}
       {error && <div className="small error-text">{error}</div>}
 
-      <div className="sidebar-footer">
+      <span className="spacer" />
+      {license.kind !== "licensed" && (
+        <button className={`trial-pill ${license.kind === "expired" ? "expired" : ""}`} onClick={onSettings}>
+          {describeLicense(license)}
+        </button>
+      )}
+      <div className="sidebar-footer" style={license.kind !== "licensed" ? { marginTop: 8 } : undefined}>
         <span className={`sync-dot ${status.pending ? "busy" : "ok"}`} />
         <span className="small muted">
           {app.platform.kind === "demo" ? "Demo mode · " : ""}

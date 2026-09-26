@@ -312,7 +312,6 @@ main {
   margin: 2px 8px;
 }
 .sidebar-footer {
-  margin-top: auto;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -837,4 +836,44 @@ main {
   main {
     padding: 20px 16px 80px;
   }
+}
+
+/* License */
+.banner.info {
+  background: color-mix(in srgb, var(--p3) 10%, transparent);
+  color: var(--text);
+}
+.license-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  max-width: 760px;
+  margin: 0 auto 12px;
+}
+.paywall {
+  padding: 24px;
+}
+.benefits {
+  padding-left: 18px;
+  margin: 12px 0;
+}
+.benefits li {
+  margin: 4px 0;
+}
+.spacer {
+  margin-top: auto;
+}
+.trial-pill {
+  margin: 0 8px;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--bg-hover);
+  color: var(--muted);
+  text-align: left;
+}
+.trial-pill.expired {
+  color: var(--p1);
+  background: color-mix(in srgb, var(--p1) 10%, transparent);
 }

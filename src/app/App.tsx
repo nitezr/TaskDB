@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { dueLabel, toDateStr } from "../core/dates";
 import type { Priority, TaskFields } from "../types";
 import { Browse } from "./components/Browse";
+import { LicenseBanner, Paywall } from "./components/License";
 import { Onboarding } from "./components/Onboarding";
 import { QuickAdd } from "./components/QuickAdd";
 import { SettingsPanel } from "./components/Settings";
@@ -39,6 +40,7 @@ function Main() {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [quickAdd, setQuickAdd] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [paywall, setPaywall] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const gPressed = useRef(false);
@@ -48,6 +50,10 @@ function Main() {
 
   useEffect(() => {
     app.onQuickAdd = () => setQuickAdd(true);
+    app.onPaywall = () => {
+      setQuickAdd(false);
+      setPaywall(true);
+    };
   }, [app]);
 
   useEffect(() => {
@@ -81,7 +87,7 @@ function Main() {
       const target = e.target as HTMLElement;
       if (target.closest("input, textarea, select, [contenteditable]")) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (quickAdd || settingsOpen) return;
+      if (quickAdd || settingsOpen || paywall) return;
 
       if (gPressed.current) {
         gPressed.current = false;
@@ -179,6 +185,7 @@ function Main() {
           }
         }}
       >
+        <LicenseBanner onOpen={() => setPaywall(true)} />
         <header className="view-header">
           <h1>{vm.title}</h1>
           {view.kind === "today" && <span className="muted">{new Date().toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}</span>}
@@ -205,7 +212,16 @@ function Main() {
       </main>
       {openId && app.task(openId) && <TaskDetail id={openId} onClose={() => setOpenId(null)} onOpen={setOpenId} />}
       {quickAdd && <QuickAdd variant="modal" defaults={vm.addDefaults} onDone={() => setQuickAdd(false)} />}
-      {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && (
+        <SettingsPanel
+          onClose={() => setSettingsOpen(false)}
+          onBuy={() => {
+            setSettingsOpen(false);
+            setPaywall(true);
+          }}
+        />
+      )}
+      {paywall && <Paywall onClose={() => setPaywall(false)} />}
       {toast && (
         <div className="toast">
           {toast.text}

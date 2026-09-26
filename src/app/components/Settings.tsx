@@ -1,9 +1,10 @@
 import { useApp } from "../hooks";
 import { QUICK_ADD_HOTKEY } from "../platform";
+import { LicenseSettings } from "./License";
 
 const ACCENTS = ["#dc4c3e", "#246fe0", "#058527", "#8b5cf6", "#eb8909", "#e05194", "#14b8a6", "#475569"];
 
-export function SettingsPanel({ onClose }: { onClose: () => void }) {
+export function SettingsPanel({ onClose, onBuy }: { onClose: () => void; onBuy: () => void }) {
   const app = useApp();
   const s = app.settings();
   const status = app.syncStatus();
@@ -17,6 +18,9 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
             ✕
           </button>
         </header>
+
+        <h4>License</h4>
+        <LicenseSettings onBuy={onBuy} />
 
         <h4>Theme</h4>
         <div className="segmented">

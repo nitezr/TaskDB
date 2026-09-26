@@ -51,7 +51,11 @@ Sold as a yearly license. Nothing is hosted by the seller.
 - **Distribution:**
   - Now: ad-hoc signed `.dmg` built by GitHub Actions (`.github/workflows/build-macos.yml`) for testing
   - Launch: signed and notarized `.dmg` (needs an Apple Developer account, $99/yr)
-- **Trial:** 14 days from first connect, no card needed; after that a Lemon Squeezy key is required (read-only without one)
+- **Trial:** 14 days from first launch, no card needed. Start date is kept in the Keychain so reinstalling doesn't reset it
+  - After the trial, a Lemon Squeezy key is required; without one the app is read-only
+  - Code: `src/license/license.ts`
+- **Lemon Squeezy setup (build-time):** repository variables `LS_STORE_ID`, `LS_PRODUCT_ID`, `LS_CHECKOUT_URL`
+  - Product: yearly subscription, $29, license keys enabled, activation limit e.g. 2 Macs
 
 ## Notion schema (auto-created)
 
@@ -117,5 +121,6 @@ Notion allows ~3 requests/sec per integration, and each call takes 0.5–2s. The
 4. ✅ Quick-add parser; labels/people/priority; filters
 5. ✅ Recurrence; reminders; global hotkey; menu bar
 6. ✅ Themes; keyboard shortcuts; onboarding wizard
-7. Lemon Squeezy licensing + 14-day trial; signing/notarization; auto-update
-8. Landing page copy + Lemon Squeezy listing
+7. ✅ Lemon Squeezy licensing + 14-day trial
+8. Signing/notarization; auto-update
+9. Landing page copy + Lemon Squeezy listing

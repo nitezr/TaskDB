@@ -17,6 +17,7 @@ tauri-plugin-http = "~2.6"
 tauri-plugin-sql = { version = "~2.4", features = ["sqlite"] }
 tauri-plugin-global-shortcut = "~2.3"
 tauri-plugin-notification = "~2.4"
+tauri-plugin-opener = "~2.5"
 keyring = { version = "3", features = ["apple-native", "windows-native", "linux-native"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

@@ -11,20 +11,14 @@ export function demoPlatform(): Platform {
   const notion = new FakeNotion();
   notion.minute = Date.now();
   seed(notion);
-  let token: string | null = localStorage.getItem("demo-token");
   return {
     kind: "demo",
     fetch: notion.fetch,
     openStore: async () => new MemoryStore(),
-    getToken: async () => token,
-    setToken: async (t) => {
-      token = t;
-      localStorage.setItem("demo-token", t);
-    },
-    clearToken: async () => {
-      token = null;
-      localStorage.removeItem("demo-token");
-    },
+    secureGet: async (k) => localStorage.getItem(`demo-${k}`),
+    secureSet: async (k, v) => localStorage.setItem(`demo-${k}`, v),
+    secureDelete: async (k) => localStorage.removeItem(`demo-${k}`),
+    openUrl: async (url) => void window.open(url, "_blank"),
     notify: async (title, body) => {
       if ("Notification" in window && Notification.permission === "granted") new Notification(title, { body });
     },
