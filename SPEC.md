@@ -17,7 +17,7 @@ Sold as a yearly license. Nothing is hosted by the seller.
 | Hierarchy | Project → Task → Sub-task |
 | People | Single-select property on Task |
 | Notion setup | App auto-creates the databases on first run |
-| Name | TBD — see candidates below |
+| Name | TaskDB |
 
 ## v1 features
 
@@ -41,7 +41,7 @@ Sold as a yearly license. Nothing is hosted by the seller.
   - Public OAuth would need a server (client secret + redirect), so it's excluded
   - Token is stored in the macOS Keychain
 - **Setup flow:** paste token → share one parent page with the integration → app creates the Tasks, Projects and Filters databases
-- **Sync:** local-first. Writes are queued; the app polls `last_edited_time` every ~10s and on focus; stays under Notion's ~3 requests/sec limit
+- **Sync:** local-first, designed around Notion's rate limit — see next section
 - **License:** Lemon Squeezy License API (activate / validate)
   - Checked at launch and daily
   - 7-day offline grace period
@@ -77,27 +77,40 @@ Sold as a yearly license. Nothing is hosted by the seller.
 - Query (text)
 - Order (number)
 
-## Name candidates (not yet checked for domain/trademark)
+## Sync & rate-limit design
 
-Rule: avoid "Notion" in the name. Notion's brand guidelines restrict it.
+Notion allows ~3 requests/sec per integration, and each call takes 0.5–2s. The design assumes this from day one.
 
-1. **Ordo**
-2. **Taskloom**
-3. **Tickwise**
-4. **Dosync**
-5. **Nudgely**
+- **Local copy is the source for the UI:** the app opens instantly and works offline. Code: `src/store`
+- **Optimistic writes:** the local copy and the screen update at once, and the change is queued in a saved outbox
+- **Coalescing:** repeated edits to one task are merged into a single request, and a task created then deleted offline costs 0 requests. Code: `src/sync/outbox.ts`
+- **One shared pacer:** a token bucket at 2.5 req/s (burst 3) covers every Notion call
+  - On a 429, the app pauses everyone for the Retry-After window
+  - It retries 5xx/network errors with backoff and never retries validation errors
+  - Code: `src/sync/rateLimiter.ts`, `src/notion/client.ts`
+- **Delta pull:** one query filtered by `last_edited_time` fetches only what changed
+  - An idle workspace costs 1 request per poll, however many tasks it has
+  - It looks back 2 min because Notion rounds timestamps to the minute
+- **Adaptive polling:** every 15s when the window is focused, 2 min in the background, 5 min when the user is idle, plus an immediate pull on focus. Code: `src/sync/scheduler.ts`
+- **Reconcile pass:** a full scan at launch and every 30 min catches pages deleted in Notion, which delta queries don't return
+- **Conflicts:** local edits that haven't been sent win until they're pushed; otherwise the newer version wins
+- **Budget:** focused polling ≈ 4 req/min, about 2% of the limit. A 1,000-task first sync takes 10 requests (~4s)
+
+**Webhooks: not used.**
+- Notion webhooks need a public server to receive them, which conflicts with "no hosting"
+- Delta polling gets close to real-time at a fraction of the rate limit
 
 ## Open items
 
-- [ ] Pick a name
+- [x] Name: TaskDB
 - [ ] Set yearly price (suggested: $39/yr)
 - [ ] Apple Developer account ($99/yr)
 - [ ] Lemon Squeezy store + product setup
 
 ## Build plan
 
-1. Scaffold Tauri + React; Notion client; auto-create schema
-2. Local cache + sync engine
+1. ✅ Sync engine: rate limiter, outbox, delta pull, reconcile (17 tests)
+2. Tauri + React scaffold; SQLite store; auto-create schema
 3. Views: Inbox/Today/Upcoming/Project; task editor; sub-tasks
 4. Quick-add parser; labels/people/priority; filters
 5. Recurrence; reminders; global hotkey; menu bar
