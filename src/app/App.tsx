@@ -10,6 +10,7 @@ import { SettingsPanel } from "./components/Settings";
 import { Sidebar } from "./components/Sidebar";
 import { TaskDetail } from "./components/TaskDetail";
 import { TaskList } from "./components/TaskList";
+import { askConfirm, ConfirmHost } from "./confirm";
 import { useApp } from "./hooks";
 import { buildView, type View, visibleIds } from "./views";
 
@@ -148,10 +149,14 @@ function Main() {
           break;
         case "Backspace":
         case "Delete":
-          if (sel && confirm(`Delete "${sel.title}"?`)) {
-            app.deleteTask(sel.id);
-            setSelected(ids[idx + 1] ?? ids[idx - 1] ?? null);
-            if (openId === sel.id) setOpenId(null);
+          if (sel) {
+            const next = ids[idx + 1] ?? ids[idx - 1] ?? null;
+            void askConfirm(`Delete "${sel.title}"?`, "Delete").then((ok) => {
+              if (!ok) return;
+              app.deleteTask(sel.id);
+              setSelected(next);
+              setOpenId((o) => (o === sel.id ? null : o));
+            });
           }
           break;
         case "Escape":
@@ -223,6 +228,7 @@ function Main() {
         />
       )}
       {paywall && <Paywall onClose={() => setPaywall(false)} />}
+      <ConfirmHost />
       {toast && (
         <div className="toast">
           {toast.text}

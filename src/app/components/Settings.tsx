@@ -1,3 +1,4 @@
+import { askConfirm } from "../confirm";
 import { useApp } from "../hooks";
 import { QUICK_ADD_HOTKEY } from "../platform";
 import { LicenseSettings } from "./License";
@@ -88,7 +89,9 @@ export function SettingsPanel({ onClose, onBuy }: { onClose: () => void; onBuy: 
           <button
             className="danger"
             onClick={() => {
-              if (confirm("Disconnect Notion? Local data is cleared; your tasks stay in Notion.")) void app.disconnect();
+              void askConfirm("Disconnect Notion? Local data is cleared; your tasks stay in Notion.", "Disconnect").then(
+                (ok) => void (ok && app.disconnect()),
+              );
             }}
           >
             Disconnect Notion

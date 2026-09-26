@@ -3,6 +3,7 @@ import { dueLabel, hasTime, parseDue, toLocalIso } from "../../core/dates";
 import { parseQuickAdd } from "../../core/quickAdd";
 import { parseRule } from "../../core/recurrence";
 import type { Priority } from "../../types";
+import { askConfirm } from "../confirm";
 import { useApp } from "../hooks";
 import { QuickAdd } from "./QuickAdd";
 
@@ -250,10 +251,11 @@ export function TaskDetail({ id, onClose, onOpen }: Props) {
         <button
           className="danger"
           onClick={() => {
-            if (confirm(`Delete "${task.title}"${subs.length ? ` and ${subs.length} sub-task(s)` : ""}?`)) {
+            void askConfirm(`Delete "${task.title}"${subs.length ? ` and ${subs.length} sub-task(s)` : ""}?`, "Delete").then((ok) => {
+              if (!ok) return;
               app.deleteTask(id);
               onClose();
-            }
+            });
           }}
         >
           Delete

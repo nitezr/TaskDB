@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { CHECKOUT_URL, type LicenseState } from "../../license/license";
+import { askConfirm } from "../confirm";
 import { useApp } from "../hooks";
 
 export const PRICE_LABEL = "$29 / year";
@@ -137,7 +138,11 @@ export function LicenseSettings({ onBuy }: { onBuy: () => void }) {
           <button
             className="danger"
             disabled={busy}
-            onClick={() => confirm("Remove the license from this Mac? You can activate it on another Mac.") && void run(() => app.deactivateLicense())}
+            onClick={() =>
+              void askConfirm("Remove the license from this Mac? You can activate it on another Mac.", "Deactivate").then(
+                (ok) => void (ok && run(() => app.deactivateLicense())),
+              )
+            }
           >
             Deactivate
           </button>

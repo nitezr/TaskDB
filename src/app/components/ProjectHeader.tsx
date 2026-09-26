@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { PROJECT_COLORS } from "../../notion/setup";
+import { askConfirm } from "../confirm";
 import { useApp } from "../hooks";
 
 /** Project title with rename, colour and archive. Changes go straight to Notion. */
@@ -62,10 +63,11 @@ export function ProjectHeader({ id, onGone }: { id: string; onGone: () => void }
       <button
         className="ghost"
         onClick={() => {
-          if (confirm(`Archive "${project.name}"? Its tasks stay in Notion; unarchive from Filters & Labels.`)) {
+          void askConfirm(`Archive "${project.name}"? Its tasks stay in Notion; unarchive from Filters & Labels.`, "Archive").then((ok) => {
+            if (!ok) return;
             void save({ archived: true });
             onGone();
-          }
+          });
         }}
       >
         Archive
