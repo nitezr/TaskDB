@@ -128,6 +128,21 @@ export class AppController {
     return { pages, existing };
   }
 
+  /** One-click sign-in through the auth worker; no secret to copy. */
+  async signInWithNotion(authUrl: string): Promise<{
+    token: string;
+    pages: PageRef[];
+    existing: WorkspaceIds | null;
+    templateId: string | null;
+  }> {
+    const params = await this.platform.notionSignIn(authUrl);
+    const error = params.get("error");
+    if (error) throw new Error(error === "access_denied" ? "Notion access was cancelled." : `Notion sign-in failed (${error}).`);
+    const token = params.get("token");
+    if (!token) throw new Error("Notion sign-in didn't return a token.");
+    return { token, ...(await this.connect(token)), templateId: params.get("template") };
+  }
+
   async finishSetup(token: string, target: { parentPageId: string } | { existing: WorkspaceIds }): Promise<void> {
     token = token.trim();
     const client = new NotionClient({ token, fetch: this.platform.fetch });

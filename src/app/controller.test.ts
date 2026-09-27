@@ -10,7 +10,7 @@ import type { Platform, SecureItem } from "./platform";
 const DAY = 86_400_000;
 const title = (s: string) => ({ title: [{ plain_text: s }] });
 
-function setup(opts: { trialStart?: number; lsResponse?: unknown } = {}) {
+function setup(opts: { trialStart?: number; lsResponse?: unknown; signIn?: Record<string, string> } = {}) {
   const notion = new FakeNotion();
   notion.minute = Date.now();
   const secure = new Map<string, string>();
@@ -26,6 +26,7 @@ function setup(opts: { trialStart?: number; lsResponse?: unknown } = {}) {
     secureSet: async (k: SecureItem, v: string) => void secure.set(k, v),
     secureDelete: async (k: SecureItem) => void secure.delete(k),
     openUrl: async () => {},
+    notionSignIn: async () => new URLSearchParams(opts.signIn ?? {}),
     notify: async () => {},
     onQuickAdd: async () => {},
     onFocusChange: () => {},
@@ -129,6 +130,19 @@ describe("AppController", () => {
     const { app } = setup();
     expect(app.phase).toBe("loading");
     expect(app.settings().theme).toBe("system");
+  });
+
+  it("signs in with Notion and reports the duplicated template page", async () => {
+    const { app } = setup({ signIn: { token: "ntn_x", template: "tpl-1", state: "s" } });
+    await app.boot();
+    const res = await app.signInWithNotion("https://auth.example.dev");
+    expect(res).toMatchObject({ token: "ntn_x", templateId: "tpl-1" });
+  });
+
+  it("explains a cancelled Notion sign-in", async () => {
+    const { app } = setup({ signIn: { error: "access_denied" } });
+    await app.boot();
+    await expect(app.signInWithNotion("https://auth.example.dev")).rejects.toThrow("Notion access was cancelled.");
   });
 
   it("starts the trial on first launch and keeps it across restarts", async () => {

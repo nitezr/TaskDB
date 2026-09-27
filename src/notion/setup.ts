@@ -76,7 +76,7 @@ export async function createWorkspace(client: NotionClient, parentPageId: string
           relation: {
             data_source_id: projectsDataSourceId,
             type: "dual_property",
-            dual_property: {},
+            dual_property: { synced_property_name: "Tasks" },
           },
         },
         [P.labels]: { multi_select: { options: [] } },
@@ -97,7 +97,7 @@ export async function createWorkspace(client: NotionClient, parentPageId: string
         relation: {
           data_source_id: tasksDataSourceId,
           type: "dual_property",
-          dual_property: {},
+          dual_property: { synced_property_name: "Sub-items" },
         },
       },
     },

@@ -983,3 +983,8 @@ main {
   border: 1px solid var(--line);
   margin-bottom: 6px;
 }
+.notion-connect {
+  padding: 12px;
+  font-size: 15px;
+  margin-top: 16px;
+}

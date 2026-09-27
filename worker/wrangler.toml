@@ -1,0 +1,7 @@
+name = "taskdb-auth"
+main = "auth.js"
+compatibility_date = "2026-09-01"
+
+[vars]
+# Public; the secret is set with: npx wrangler secret put NOTION_CLIENT_SECRET
+NOTION_CLIENT_ID = "paste-your-notion-oauth-client-id"

@@ -11,6 +11,8 @@ export interface Platform {
   secureSet(account: SecureItem, value: string): Promise<void>;
   secureDelete(account: SecureItem): Promise<void>;
   openUrl(url: string): Promise<void>;
+  /** Runs the browser sign-in via the auth worker; resolves with its callback params. */
+  notionSignIn(authUrl: string): Promise<URLSearchParams>;
   notify(title: string, body: string): Promise<void>;
   /** Global hotkey + tray "Quick add" both call this. */
   onQuickAdd(cb: () => void): Promise<void>;
@@ -20,6 +22,14 @@ export interface Platform {
 export type SecureItem = "notion-token" | "license" | "trial-start";
 
 export const isTauri = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+
+/** Base URL of the TaskDB auth worker (worker/auth.js). Empty = sign-in button hidden. */
+export const NOTION_AUTH_URL: string = import.meta.env?.VITE_NOTION_AUTH_URL || "";
+
+export function randomState(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(24));
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
 
 export const QUICK_ADD_HOTKEY = "CommandOrControl+Shift+Space";
 
@@ -45,6 +55,21 @@ export async function tauriPlatform(): Promise<Platform> {
     secureSet: (account, value) => invoke("secure_set", { account, value }),
     secureDelete: (account) => invoke("secure_delete", { account }),
     openUrl: (url) => opener.openUrl(url),
+    async notionSignIn(authUrl) {
+      const port = await invoke<number>("oauth_listen");
+      const state = `${port}.${randomState()}`;
+      let unlisten: (() => void) | undefined;
+      const result = new Promise<URLSearchParams>((resolve) => {
+        void listen<string>("oauth-callback", (e) => {
+          const params = new URLSearchParams(e.payload);
+          if (params.get("state") !== state) return;
+          unlisten?.();
+          resolve(params);
+        }).then((fn) => (unlisten = fn));
+      });
+      await opener.openUrl(`${authUrl.replace(/\/$/, "")}/start?state=${encodeURIComponent(state)}`);
+      return result;
+    },
     async notify(title, body) {
       let granted = await notification.isPermissionGranted();
       if (!granted) granted = (await notification.requestPermission()) === "granted";

@@ -48,6 +48,8 @@ jobs:
           VITE_LS_STORE_ID: ${{ vars.LS_STORE_ID }}
           VITE_LS_PRODUCT_ID: ${{ vars.LS_PRODUCT_ID }}
           VITE_LS_CHECKOUT_URL: ${{ vars.LS_CHECKOUT_URL }}
+          # URL of the deployed worker/ (Connect with Notion). Empty = paste-secret onboarding only.
+          VITE_NOTION_AUTH_URL: ${{ vars.NOTION_AUTH_URL }}
       - uses: actions/upload-artifact@v4
         with:
           name: TaskDB-macOS

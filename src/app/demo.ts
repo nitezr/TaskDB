@@ -19,6 +19,10 @@ export function demoPlatform(): Platform {
     secureSet: async (k, v) => localStorage.setItem(`demo-${k}`, v),
     secureDelete: async (k) => localStorage.removeItem(`demo-${k}`),
     openUrl: async (url) => void window.open(url, "_blank"),
+    notionSignIn: async () => {
+      await new Promise((r) => setTimeout(r, 600));
+      return new URLSearchParams({ token: "demo-token", workspace: "Demo" });
+    },
     notify: async (title, body) => {
       if ("Notification" in window && Notification.permission === "granted") new Notification(title, { body });
     },
