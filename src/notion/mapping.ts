@@ -15,9 +15,17 @@ export const P = {
   reminder: "Reminder",
   order: "Order",
   completedAt: "Completed at",
+  notes: "Notes",
+  section: "Section",
 } as const satisfies Record<keyof TaskFields, string>;
 
 const text = (s: string) => [{ type: "text", text: { content: s } }];
+/** Notion caps each rich-text item at 2,000 characters. */
+const longText = (s: string) => {
+  const out = [];
+  for (let i = 0; i < s.length; i += 2000) out.push({ type: "text", text: { content: s.slice(i, i + 2000) } });
+  return out;
+};
 const date = (d: string | null) => (d ? { start: d } : null);
 const select = (name: string | null) => (name ? { name } : null);
 
@@ -55,6 +63,12 @@ export function toProperties(
         break;
       case "recurrence":
         out[name] = { rich_text: value ? text(value) : [] };
+        break;
+      case "notes":
+        out[name] = { rich_text: value ? longText(value) : [] };
+        break;
+      case "section":
+        out[name] = { select: select(value) };
         break;
       case "order":
         out[name] = { number: value };
@@ -101,5 +115,7 @@ export function fromPage(page: NotionPage): TaskFields {
     reminder: p[P.reminder]?.date?.start ?? null,
     order: p[P.order]?.number ?? 0,
     completedAt: p[P.completedAt]?.date?.start ?? null,
+    notes: plain(p[P.notes]?.rich_text) || null,
+    section: p[P.section]?.select?.name ?? null,
   };
 }

@@ -32,7 +32,7 @@ export function Sidebar({ view, onNavigate, onQuickAdd, onSettings, searchRef }:
     if (!name) return setNewProject(null);
     try {
       const color = PROJECT_COLORS[app.projects.length % PROJECT_COLORS.length]!;
-      const p = await app.addProject(name, color);
+      const p = await app.addProject({ name, color });
       setNewProject(null);
       setError(null);
       onNavigate({ kind: "project", id: p.id });

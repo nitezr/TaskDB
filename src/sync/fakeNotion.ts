@@ -16,6 +16,8 @@ export class FakeNotion {
 
   /** Data source each page belongs to. */
   pageSource = new Map<string, string>();
+  /** Property schemas per data source (for GET/PATCH /data_sources/:id). */
+  schemas = new Map<string, Record<string, unknown>>();
 
   addPage(properties: Record<string, any>, dataSourceId = "ds"): NotionPage {
     const page: NotionPage = { id: `page-${++this.seq}`, last_edited_time: this.editedAt(), properties };
@@ -46,7 +48,18 @@ export class FakeNotion {
     const json = (data: unknown) => new Response(JSON.stringify(data), { status: 200 });
 
     if (init.method === "POST" && path === "/pages") {
-      return json(this.addPage(body.properties, body.parent?.data_source_id));
+      const page = this.addPage(body.properties, body.parent?.data_source_id);
+      page.created_time = this.editedAt();
+      if (body.icon) page.icon = body.icon;
+      return json(page);
+    }
+    const dsMatch = path.match(/^\/data_sources\/([^/]+)$/);
+    if (dsMatch && init.method === "GET") {
+      return json({ id: dsMatch[1], properties: this.schemas.get(dsMatch[1]!) ?? {} });
+    }
+    if (dsMatch && init.method === "PATCH") {
+      this.schemas.set(dsMatch[1]!, { ...(this.schemas.get(dsMatch[1]!) ?? {}), ...body.properties });
+      return json({ id: dsMatch[1], properties: this.schemas.get(dsMatch[1]!) });
     }
     const pageMatch = path.match(/^\/pages\/(.+)$/);
     if (init.method === "PATCH" && pageMatch) {
@@ -56,7 +69,8 @@ export class FakeNotion {
         page.in_trash = true;
         page.last_edited_time = this.editedAt();
       } else {
-        this.editPage(page.id, body.properties);
+        this.editPage(page.id, body.properties ?? {});
+        if (body.icon !== undefined) page.icon = body.icon;
       }
       return json(page);
     }

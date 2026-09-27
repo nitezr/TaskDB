@@ -49,6 +49,7 @@ export class SyncEngine {
       notionId: null,
       remoteEditedAt: null,
       syncError: null,
+      createdAt: new Date().toISOString(),
     };
     this.opts.store.putTask(task);
     this.outbox.enqueue({ kind: "create", taskId: task.id, fields: pickFields(task) });
@@ -247,6 +248,7 @@ export class SyncEngine {
       notionId: page.id,
       remoteEditedAt: page.last_edited_time,
       syncError: null,
+      createdAt: page.created_time ?? local?.createdAt ?? null,
     });
     return true;
   }

@@ -30,6 +30,8 @@ export interface NotionClientOptions {
 export interface NotionPage {
   id: string;
   last_edited_time: string;
+  created_time?: string;
+  icon?: { type: string; emoji?: string } | null;
   in_trash?: boolean;
   archived?: boolean;
   properties: Record<string, any>;

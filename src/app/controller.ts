@@ -3,7 +3,15 @@ import { parseQuickAdd } from "../core/quickAdd";
 import { nextDue } from "../core/recurrence";
 import { NotionClient } from "../notion/client";
 import { type Project, ProjectsApi } from "../notion/projects";
-import { createWorkspace, findExistingWorkspace, listSharedPages, type PageRef, type WorkspaceIds } from "../notion/setup";
+import {
+  createWorkspace,
+  findExistingWorkspace,
+  listSharedPages,
+  type PageRef,
+  PROJECT_COLORS,
+  upgradeWorkspace,
+  type WorkspaceIds,
+} from "../notion/setup";
 import type { Store } from "../store/store";
 import { SyncEngine } from "../sync/engine";
 import { SyncScheduler } from "../sync/scheduler";
@@ -23,6 +31,14 @@ export interface SavedFilter {
   id: string;
   name: string;
   query: string;
+}
+
+/** A saved project skeleton: section names only, never tasks. */
+export interface ProjectTemplate {
+  id: string;
+  name: string;
+  sections: string[];
+  createdAt: string;
 }
 
 export interface Settings {
@@ -103,9 +119,12 @@ export class AppController {
       },
     });
     this.scheduler = new SyncScheduler(this.engine);
-    this.projects = JSON.parse(this.store.getMeta("projects") ?? "[]");
+    this.projects = (JSON.parse(this.store.getMeta("projects") ?? "[]") as Project[]).map(withProjectDefaults);
     this.scheduler.start();
-    void this.refreshProjects();
+    // Older workspaces get the columns newer versions need, then projects load.
+    void upgradeWorkspace(this.client, ids)
+      .catch((e) => (this.lastError = e instanceof Error ? e.message : String(e)))
+      .finally(() => void this.refreshProjects());
     this.timers.push(setInterval(() => void this.refreshProjects(), PROJECT_REFRESH_MS));
     this.timers.push(setInterval(() => this.checkReminders(), 30_000));
     this.timers.push(setInterval(() => this.updateActivity(), 60_000));
@@ -222,7 +241,7 @@ export class AppController {
     let projectId = defaults.projectId ?? null;
     if (r.project) {
       const found = this.projects.find((p) => p.name.toLowerCase() === r.project!.toLowerCase());
-      projectId = found ? found.id : ((await this.addProject(r.project).catch(() => null))?.id ?? projectId);
+      projectId = found ? found.id : ((await this.addProject({ name: r.project }).catch(() => null))?.id ?? projectId);
     }
     return this.createTask({
       ...defaults,
@@ -241,13 +260,18 @@ export class AppController {
     const siblings = this.tasks().filter((t) => t.projectId === (fields.projectId ?? null) && t.parentId === (fields.parentId ?? null));
     const order = siblings.reduce((m, t) => Math.max(m, t.order), 0) + 1;
     const task = this.engine!.createTask({ order, ...fields });
+    this.record(`Added “${task.title}”`, (ids) => this.engine!.deleteTask(ids.get(task.id) ?? task.id));
     this.afterLocalWrite();
     return task;
   }
 
   updateTask(id: string, fields: Partial<TaskFields>): void {
     if (!this.guard()) return;
+    const before = this.task(id);
+    if (!before) return;
+    const prev = Object.fromEntries(Object.keys(fields).map((k) => [k, before[k as keyof TaskFields]])) as Partial<TaskFields>;
     this.engine!.updateTask(id, fields);
+    this.record(`Edited “${before.title}”`, (ids) => this.engine!.updateTask(ids.get(id) ?? id, prev));
     this.afterLocalWrite();
   }
 
@@ -255,22 +279,24 @@ export class AppController {
   complete(id: string): void {
     const task = this.task(id);
     if (!task) return;
-    if (task.recurrence && !task.parentId) {
-      const due = nextDue(task.recurrence, task.due);
-      if (due) {
-        const shift = task.reminder && task.due ? parseDue(due).getTime() - parseDue(task.due).getTime() : 0;
-        this.updateTask(id, {
-          due,
-          reminder: task.reminder ? toLocalIso(new Date(parseDue(task.reminder).getTime() + shift)) : null,
-        });
-        return;
+    this.transaction(() => {
+      if (task.recurrence && !task.parentId) {
+        const due = nextDue(task.recurrence, task.due);
+        if (due) {
+          const shift = task.reminder && task.due ? parseDue(due).getTime() - parseDue(task.due).getTime() : 0;
+          this.updateTask(id, {
+            due,
+            reminder: task.reminder ? toLocalIso(new Date(parseDue(task.reminder).getTime() + shift)) : null,
+          });
+          return;
+        }
       }
-    }
-    const completedAt = toDateStr(new Date());
-    this.updateTask(id, { done: true, completedAt });
-    for (const sub of this.tasks().filter((t) => t.parentId === id && !t.done)) {
-      this.updateTask(sub.id, { done: true, completedAt });
-    }
+      const completedAt = toDateStr(new Date());
+      this.updateTask(id, { done: true, completedAt });
+      for (const sub of this.tasks().filter((t) => t.parentId === id && !t.done)) {
+        this.updateTask(sub.id, { done: true, completedAt });
+      }
+    }, `Completed “${task.title}”`);
   }
 
   reopen(id: string): void {
@@ -279,9 +305,81 @@ export class AppController {
 
   deleteTask(id: string): void {
     if (!this.guard()) return;
-    for (const sub of this.tasks().filter((t) => t.parentId === id)) this.deleteTask(sub.id);
-    this.engine!.deleteTask(id);
+    const task = this.task(id);
+    if (!task) return;
+    this.transaction(() => {
+      for (const sub of this.tasks().filter((t) => t.parentId === id)) this.deleteTask(sub.id);
+      const { id: _i, notionId: _n, remoteEditedAt: _r, syncError: _e, createdAt: _c, ...fields } = task;
+      this.engine!.deleteTask(id);
+      // Undo re-creates it; sub-tasks restored after it are re-pointed at the new id.
+      this.record(`Deleted “${task.title}”`, (ids) => {
+        const parentId = fields.parentId ? (ids.get(fields.parentId) ?? fields.parentId) : null;
+        ids.set(id, this.engine!.createTask({ ...fields, parentId }).id);
+      });
+      this.afterLocalWrite();
+    }, `Deleted “${task.title}”`);
+  }
+
+  /** Moves due dates, keeping any time of day. */
+  schedule(ids: string[], target: ScheduleTarget): void {
+    this.transaction(() => {
+      for (const id of ids) {
+        const t = this.task(id);
+        if (t) this.updateTask(id, { due: scheduleDue(t.due, target) });
+      }
+    }, ids.length === 1 ? `Rescheduled “${this.task(ids[0]!)?.title ?? ""}”` : `Rescheduled ${ids.length} tasks`);
+  }
+
+  // ---- Undo ----
+
+  private undoStack: { label: string; steps: ((ids: Map<string, string>) => void)[] }[] = [];
+  private openTx: { label: string; steps: ((ids: Map<string, string>) => void)[] } | null = null;
+  private undoing = false;
+
+  /** Groups every change made inside `fn` into one undo step. */
+  transaction<T>(fn: () => T, label?: string): T {
+    if (this.openTx || this.undoing) return fn();
+    this.openTx = { label: label ?? "", steps: [] };
+    try {
+      return fn();
+    } finally {
+      const tx = this.openTx;
+      this.openTx = null;
+      if (tx.steps.length) {
+        this.undoStack.push({ label: label ?? tx.label, steps: tx.steps });
+        if (this.undoStack.length > 50) this.undoStack.shift();
+      }
+    }
+  }
+
+  private record(label: string, step: (ids: Map<string, string>) => void): void {
+    if (this.undoing) return;
+    if (this.openTx) {
+      if (!this.openTx.label) this.openTx.label = label;
+      this.openTx.steps.push(step);
+    } else {
+      this.undoStack.push({ label, steps: [step] });
+      if (this.undoStack.length > 50) this.undoStack.shift();
+    }
+  }
+
+  canUndo(): boolean {
+    return this.undoStack.length > 0;
+  }
+
+  /** Reverts the last change. Returns its label for the toast, or null if nothing to undo. */
+  undo(): string | null {
+    const entry = this.undoStack.pop();
+    if (!entry || !this.guard()) return null;
+    this.undoing = true;
+    try {
+      const ids = new Map<string, string>();
+      for (const step of [...entry.steps].reverse()) step(ids);
+    } finally {
+      this.undoing = false;
+    }
     this.afterLocalWrite();
+    return entry.label;
   }
 
   retrySync(id: string): void {
@@ -300,7 +398,7 @@ export class AppController {
     if (!this.projectsApi) return;
     try {
       this.projects = await this.projectsApi.list();
-      this.store.setMeta("projects", JSON.stringify(this.projects));
+      this.saveProjectsCache();
       this.lastError = null;
     } catch (e) {
       this.lastError = e instanceof Error ? e.message : String(e);
@@ -308,22 +406,141 @@ export class AppController {
     this.emit();
   }
 
-  async addProject(name: string, color = "gray"): Promise<Project> {
+  project(id: string | null): Project | undefined {
+    return id ? this.projects.find((p) => p.id === id) : undefined;
+  }
+
+  /** Top-level projects first, each followed by its children, in sidebar order. */
+  projectTree(includeArchived = false): { project: Project; depth: number }[] {
+    const live = this.projects.filter((p) => includeArchived || !p.archived);
+    const ids = new Set(live.map((p) => p.id));
+    const out: { project: Project; depth: number }[] = [];
+    const walk = (parentId: string | null, depth: number) => {
+      for (const p of live.filter((x) => (x.parentId && ids.has(x.parentId) ? x.parentId : null) === parentId)) {
+        out.push({ project: p, depth });
+        if (depth < 3) walk(p.id, depth + 1);
+      }
+    };
+    walk(null, 0);
+    return out;
+  }
+
+  async addProject(fields: Partial<Omit<Project, "id">> & { name: string }): Promise<Project> {
     if (!this.guard()) throw new Error("TaskDB is read-only until you activate a license.");
     const order = this.projects.reduce((m, p) => Math.max(m, p.order), 0) + 1;
-    const project = await this.projectsApi!.create(name, color, order);
+    const color = fields.color ?? PROJECT_COLORS[(this.projects.length + 5) % PROJECT_COLORS.length]!;
+    const project = await this.projectsApi!.create({ order, color, sections: [], ...fields });
     this.projects = [...this.projects, project];
-    this.store.setMeta("projects", JSON.stringify(this.projects));
+    this.saveProjectsCache();
     this.emit();
     return project;
   }
 
-  async updateProject(id: string, fields: Partial<Pick<Project, "name" | "color" | "archived">>): Promise<void> {
+  async updateProject(id: string, fields: Partial<Omit<Project, "id">>): Promise<void> {
     if (!this.guard()) return;
     this.projects = this.projects.map((p) => (p.id === id ? { ...p, ...fields } : p));
-    this.store.setMeta("projects", JSON.stringify(this.projects));
+    this.saveProjectsCache();
     this.emit();
-    await this.projectsApi!.update(id, fields);
+    try {
+      await this.projectsApi!.update(id, fields);
+    } catch (e) {
+      this.lastError = e instanceof Error ? e.message : String(e);
+      void this.refreshProjects();
+      throw e;
+    }
+  }
+
+  /** Deletes the project and its tasks (from Notion too). Sub-projects move up a level. */
+  async deleteProject(id: string): Promise<void> {
+    if (!this.guard()) return;
+    const project = this.project(id);
+    if (!project) return;
+    this.transaction(() => {
+      for (const t of this.tasks().filter((t) => t.projectId === id && !t.parentId)) this.deleteTask(t.id);
+    });
+    for (const child of this.projects.filter((p) => p.parentId === id)) {
+      await this.updateProject(child.id, { parentId: project.parentId });
+    }
+    this.projects = this.projects.filter((p) => p.id !== id);
+    this.saveProjectsCache();
+    this.emit();
+    await this.projectsApi!.trash(id);
+  }
+
+  private saveProjectsCache(): void {
+    this.store.setMeta("projects", JSON.stringify(this.projects));
+  }
+
+  // ---- Sections ----
+
+  sections(projectId: string): string[] {
+    const project = this.project(projectId);
+    const declared = project?.sections ?? [];
+    // Sections set from Notion that the project list doesn't know yet still show up.
+    const used = this.tasks()
+      .filter((t) => t.projectId === projectId && t.section && !declared.includes(t.section))
+      .map((t) => t.section!);
+    return [...declared, ...uniqueSorted(used)];
+  }
+
+  async addSection(projectId: string, name: string): Promise<void> {
+    const clean = name.trim();
+    if (!clean || this.sections(projectId).includes(clean)) return;
+    await this.updateProject(projectId, { sections: [...this.sections(projectId), clean] });
+  }
+
+  async renameSection(projectId: string, from: string, to: string): Promise<void> {
+    const clean = to.trim();
+    if (!clean || clean === from) return;
+    const renamed = [...new Set(this.sections(projectId).map((s) => (s === from ? clean : s)))];
+    this.transaction(() => {
+      for (const t of this.tasks().filter((t) => t.projectId === projectId && t.section === from)) {
+        this.updateTask(t.id, { section: clean });
+      }
+    });
+    await this.updateProject(projectId, { sections: renamed });
+  }
+
+  /** Removes a section; its tasks stay in the project without a section. */
+  async deleteSection(projectId: string, name: string): Promise<void> {
+    const remaining = this.sections(projectId).filter((s) => s !== name);
+    this.transaction(() => {
+      for (const t of this.tasks().filter((t) => t.projectId === projectId && t.section === name)) {
+        this.updateTask(t.id, { section: null });
+      }
+    });
+    await this.updateProject(projectId, { sections: remaining });
+  }
+
+  async moveSection(projectId: string, name: string, delta: -1 | 1): Promise<void> {
+    const list = [...this.sections(projectId)];
+    const i = list.indexOf(name);
+    const j = i + delta;
+    if (i < 0 || j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j]!, list[i]!];
+    await this.updateProject(projectId, { sections: list });
+  }
+
+  // ---- Templates ----
+
+  templates(): ProjectTemplate[] {
+    return JSON.parse(this.store.getMeta("templates") ?? "[]");
+  }
+
+  saveTemplate(projectId: string, name: string): void {
+    const t: ProjectTemplate = {
+      id: `tpl-${Date.now()}`,
+      name: name.trim(),
+      sections: this.sections(projectId),
+      createdAt: new Date().toISOString(),
+    };
+    this.store.setMeta("templates", JSON.stringify([...this.templates(), t]));
+    this.emit();
+  }
+
+  deleteTemplate(id: string): void {
+    this.store.setMeta("templates", JSON.stringify(this.templates().filter((t) => t.id !== id)));
+    this.emit();
   }
 
   // ---- People, filters, settings ----
@@ -440,6 +657,40 @@ const DEFAULT_FILTERS: SavedFilter[] = [
 
 function instanceName(): string {
   return `TaskDB on ${navigator.platform || "Mac"} (${new Date().toISOString().slice(0, 10)})`;
+}
+
+function withProjectDefaults(p: Project): Project {
+  const defaults: Pick<Project, "emoji" | "favorite" | "parentId" | "sections"> = {
+    emoji: null,
+    favorite: false,
+    parentId: null,
+    sections: [],
+  };
+  return { ...defaults, ...p };
+}
+
+export type ScheduleTarget = "today" | "tomorrow" | "weekend" | "nextWeek" | "none";
+
+/** New due value for a schedule key, keeping the existing time of day. */
+export function scheduleDue(current: string | null, target: ScheduleTarget, now = new Date()): string | null {
+  if (target === "none") return null;
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const offset = {
+    today: 0,
+    tomorrow: 1,
+    // Next Saturday (a week out if today is Saturday).
+    weekend: (6 - today.getDay() + 7) % 7 || 7,
+    // Next Monday.
+    nextWeek: (8 - today.getDay()) % 7 || 7,
+  }[target];
+  const day = new Date(today);
+  day.setDate(day.getDate() + offset);
+  if (current && hasTime(current)) {
+    const t = parseDue(current);
+    day.setHours(t.getHours(), t.getMinutes(), 0, 0);
+    return toLocalIso(day);
+  }
+  return toDateStr(day);
 }
 
 function uniqueSorted(xs: string[]): string[] {

@@ -1,5 +1,6 @@
 import type { NotionClient } from "./client";
 import { P } from "./mapping";
+import { PP } from "./projects";
 
 export interface WorkspaceIds {
   tasksDataSourceId: string;
@@ -42,21 +43,52 @@ export async function findExistingWorkspace(client: NotionClient): Promise<Works
 }
 
 const option = (name: string, color: string) => ({ name, color });
+const relation = (dataSourceId: string, syncedName: string) => ({
+  relation: { data_source_id: dataSourceId, type: "dual_property", dual_property: { synced_property_name: syncedName } },
+});
 
-/** Creates the Projects and Tasks databases under `parentPageId`. Costs 3 requests. */
+function projectProperties(): Record<string, unknown> {
+  return {
+    [PP.name]: { title: {} },
+    [PP.color]: { select: { options: PROJECT_COLORS.map((c) => option(c, c)) } },
+    [PP.archived]: { checkbox: {} },
+    [PP.order]: { number: {} },
+    [PP.favorite]: { checkbox: {} },
+    [PP.sections]: { rich_text: {} },
+  };
+}
+
+function taskProperties(projectsDataSourceId: string): Record<string, unknown> {
+  return {
+    [P.title]: { title: {} },
+    [P.done]: { checkbox: {} },
+    [P.due]: { date: {} },
+    [P.priority]: {
+      select: { options: [option("p1", "red"), option("p2", "orange"), option("p3", "blue"), option("p4", "default")] },
+    },
+    [P.projectId]: relation(projectsDataSourceId, "Tasks"),
+    [P.labels]: { multi_select: { options: [] } },
+    [P.person]: { select: { options: [] } },
+    [P.recurrence]: { rich_text: {} },
+    [P.reminder]: { date: {} },
+    [P.order]: { number: {} },
+    [P.completedAt]: { date: {} },
+    [P.notes]: { rich_text: {} },
+    [P.section]: { select: { options: [] } },
+  };
+}
+
+/** Self-relations can only be added once the data source exists. */
+const taskSelfRelations = (tasksDs: string) => ({ [P.parentId]: relation(tasksDs, "Sub-items") });
+const projectSelfRelations = (projectsDs: string) => ({ [PP.parentId]: relation(projectsDs, "Sub-projects") });
+
+/** Creates the Projects and Tasks databases under `parentPageId`. Costs 4 requests. */
 export async function createWorkspace(client: NotionClient, parentPageId: string): Promise<WorkspaceIds> {
   const projects: any = await client.request("POST", "/databases", {
     parent: { type: "page_id", page_id: parentPageId },
     title: [{ type: "text", text: { content: PROJECTS_TITLE } }],
     icon: { type: "emoji", emoji: "📁" },
-    initial_data_source: {
-      properties: {
-        Name: { title: {} },
-        Color: { select: { options: PROJECT_COLORS.map((c) => option(c, c)) } },
-        Archived: { checkbox: {} },
-        Order: { number: {} },
-      },
-    },
+    initial_data_source: { properties: projectProperties() },
   });
   const projectsDataSourceId: string = projects.data_sources[0].id;
 
@@ -64,46 +96,38 @@ export async function createWorkspace(client: NotionClient, parentPageId: string
     parent: { type: "page_id", page_id: parentPageId },
     title: [{ type: "text", text: { content: TASKS_TITLE } }],
     icon: { type: "emoji", emoji: "✅" },
-    initial_data_source: {
-      properties: {
-        [P.title]: { title: {} },
-        [P.done]: { checkbox: {} },
-        [P.due]: { date: {} },
-        [P.priority]: {
-          select: { options: [option("p1", "red"), option("p2", "orange"), option("p3", "blue"), option("p4", "default")] },
-        },
-        [P.projectId]: {
-          relation: {
-            data_source_id: projectsDataSourceId,
-            type: "dual_property",
-            dual_property: { synced_property_name: "Tasks" },
-          },
-        },
-        [P.labels]: { multi_select: { options: [] } },
-        [P.person]: { select: { options: [] } },
-        [P.recurrence]: { rich_text: {} },
-        [P.reminder]: { date: {} },
-        [P.order]: { number: {} },
-        [P.completedAt]: { date: {} },
-      },
-    },
+    initial_data_source: { properties: taskProperties(projectsDataSourceId) },
   });
   const tasksDataSourceId: string = tasks.data_sources[0].id;
 
-  // A self-relation needs the data source to exist first.
-  await client.request("PATCH", `/data_sources/${tasksDataSourceId}`, {
-    properties: {
-      [P.parentId]: {
-        relation: {
-          data_source_id: tasksDataSourceId,
-          type: "dual_property",
-          dual_property: { synced_property_name: "Sub-items" },
-        },
-      },
-    },
+  await client.request("PATCH", `/data_sources/${tasksDataSourceId}`, { properties: taskSelfRelations(tasksDataSourceId) });
+  await client.request("PATCH", `/data_sources/${projectsDataSourceId}`, {
+    properties: projectSelfRelations(projectsDataSourceId),
   });
-
   return { tasksDataSourceId, projectsDataSourceId };
+}
+
+/**
+ * Adds properties introduced by newer TaskDB versions to an existing workspace.
+ * Costs 2 reads, plus a write only when something is missing.
+ */
+export async function upgradeWorkspace(client: NotionClient, ids: WorkspaceIds): Promise<string[]> {
+  const added: string[] = [];
+  const ensure = async (dataSourceId: string, wanted: Record<string, unknown>) => {
+    const ds: any = await client.request("GET", `/data_sources/${dataSourceId}`);
+    const have = new Set(Object.keys(ds.properties ?? {}));
+    const missing = Object.fromEntries(Object.entries(wanted).filter(([name]) => !have.has(name)));
+    if (Object.keys(missing).length) {
+      await client.request("PATCH", `/data_sources/${dataSourceId}`, { properties: missing });
+      added.push(...Object.keys(missing));
+    }
+  };
+  await ensure(ids.projectsDataSourceId, { ...projectProperties(), ...projectSelfRelations(ids.projectsDataSourceId) });
+  await ensure(ids.tasksDataSourceId, {
+    ...taskProperties(ids.projectsDataSourceId),
+    ...taskSelfRelations(ids.tasksDataSourceId),
+  });
+  return added;
 }
 
 export const PROJECT_COLORS = ["gray", "brown", "orange", "yellow", "green", "blue", "purple", "pink", "red"];

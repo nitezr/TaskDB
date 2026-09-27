@@ -14,6 +14,10 @@ export interface TaskFields {
   reminder: string | null;
   order: number;
   completedAt: string | null;
+  /** Free-text description shown under the title. */
+  notes: string | null;
+  /** Section name within the task's project. */
+  section: string | null;
 }
 
 export interface Task extends TaskFields {
@@ -25,6 +29,8 @@ export interface Task extends TaskFields {
   remoteEditedAt: string | null;
   /** Set when Notion rejected a write that won't succeed on retry. */
   syncError: string | null;
+  /** When the task was first created (Notion created_time), for "Date added" sorting. */
+  createdAt?: string | null;
 }
 
 export const DEFAULT_FIELDS: TaskFields = {
@@ -40,6 +46,8 @@ export const DEFAULT_FIELDS: TaskFields = {
   reminder: null,
   order: 0,
   completedAt: null,
+  notes: null,
+  section: null,
 };
 
 export type OutboxOp =

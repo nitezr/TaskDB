@@ -4,7 +4,7 @@ import { toDateStr } from "../core/dates";
 import { P } from "../notion/mapping";
 import { MemoryStore } from "../store/store";
 import { FakeNotion } from "../sync/fakeNotion";
-import { AppController } from "./controller";
+import { AppController, scheduleDue } from "./controller";
 import type { Platform, SecureItem } from "./platform";
 
 const DAY = 86_400_000;
@@ -145,11 +145,64 @@ describe("AppController", () => {
     await expect(app.signInWithNotion("https://auth.example.dev")).rejects.toThrow("Notion access was cancelled.");
   });
 
+  it("undoes a completion, including its sub-tasks", async () => {
+    const { app } = setup();
+    await ready(app);
+    const parent = app.createTask({ title: "Launch" })!;
+    const child = app.createTask({ title: "Copy", parentId: parent.id })!;
+    app.complete(parent.id);
+    expect(app.undo()).toBe("Completed “Launch”");
+    expect(app.task(parent.id)?.done).toBe(false);
+    expect(app.task(child.id)?.done).toBe(false);
+  });
+
+  it("undoes a delete by restoring the task and its sub-tasks", async () => {
+    const { app } = setup();
+    await ready(app);
+    const parent = app.createTask({ title: "Launch" })!;
+    app.createTask({ title: "Copy", parentId: parent.id });
+    app.deleteTask(parent.id);
+    expect(app.tasks()).toHaveLength(0);
+    app.undo();
+    const restored = app.tasks();
+    const newParent = restored.find((t) => t.title === "Launch")!;
+    expect(restored.find((t) => t.title === "Copy")?.parentId).toBe(newParent.id);
+  });
+
+  it("renames a section on the project and every task in it", async () => {
+    const { app } = setup();
+    await ready(app);
+    const project = await app.addProject({ name: "Acme", sections: ["Plan", "Build"] });
+    const t = app.createTask({ title: "Spec", projectId: project.id, section: "Plan" })!;
+    await app.renameSection(project.id, "Plan", "Planning");
+    expect(app.sections(project.id)).toEqual(["Planning", "Build"]);
+    expect(app.task(t.id)?.section).toBe("Planning");
+  });
+
+  it("adds missing Notion columns to an older workspace", async () => {
+    const { app, notion } = setup();
+    await ready(app);
+    expect(Object.keys(notion.schemas.get("ds") ?? {})).toEqual(expect.arrayContaining(["Notes", "Section", "Parent item"]));
+    expect(Object.keys(notion.schemas.get("projects") ?? {})).toEqual(expect.arrayContaining(["Favorite", "Sections", "Parent project"]));
+  });
+
   it("starts the trial on first launch and keeps it across restarts", async () => {
     const first = setup();
     await first.app.boot();
     const saved = first.secure.get("trial-start");
     expect(Number(saved)).toBe(Date.now());
     expect(first.app.licenseState()).toEqual({ kind: "trial", daysLeft: 14 });
+  });
+});
+
+describe("scheduleDue", () => {
+  const sat = new Date(2026, 8, 26, 10);
+  it("keeps the time of day", () => {
+    expect(scheduleDue("2026-09-20T17:30:00+00:00", "tomorrow", sat)).toMatch(/^2026-09-27T/);
+  });
+  it("maps weekend to next Saturday and next week to Monday", () => {
+    expect(scheduleDue(null, "weekend", sat)).toBe("2026-10-03");
+    expect(scheduleDue(null, "nextWeek", sat)).toBe("2026-09-28");
+    expect(scheduleDue("2026-09-20", "none", sat)).toBeNull();
   });
 });

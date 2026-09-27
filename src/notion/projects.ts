@@ -6,17 +6,60 @@ export interface Project {
   color: string;
   archived: boolean;
   order: number;
+  /** Shown before the name; stored as the Notion page icon. */
+  emoji: string | null;
+  favorite: boolean;
+  /** Parent project for nesting (e.g. "Work" → "Acme Launch"). */
+  parentId: string | null;
+  /** Section names in display order. Tasks reference them by name. */
+  sections: string[];
 }
 
-function fromPage(page: NotionPage): Project {
+/** Property names of the auto-created Projects data source. */
+export const PP = {
+  name: "Name",
+  color: "Color",
+  archived: "Archived",
+  order: "Order",
+  favorite: "Favorite",
+  parentId: "Parent project",
+  sections: "Sections",
+} as const;
+
+const plain = (rich: any[] | undefined) =>
+  (rich ?? []).map((t: any) => t.plain_text ?? t.text?.content ?? "").join("");
+
+export function projectFromPage(page: NotionPage): Project {
   const p = page.properties;
   return {
     id: page.id,
-    name: (p.Name?.title ?? []).map((t: any) => t.plain_text ?? t.text?.content ?? "").join("") || "Untitled",
-    color: p.Color?.select?.name ?? "gray",
-    archived: Boolean(p.Archived?.checkbox),
-    order: p.Order?.number ?? 0,
+    name: plain(p[PP.name]?.title) || "Untitled",
+    color: p[PP.color]?.select?.name ?? "gray",
+    archived: Boolean(p[PP.archived]?.checkbox),
+    order: p[PP.order]?.number ?? 0,
+    emoji: page.icon?.type === "emoji" ? (page.icon.emoji ?? null) : null,
+    favorite: Boolean(p[PP.favorite]?.checkbox),
+    parentId: p[PP.parentId]?.relation?.[0]?.id ?? null,
+    sections: plain(p[PP.sections]?.rich_text)
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean),
   };
+}
+
+type Editable = Partial<Omit<Project, "id">>;
+
+function toProperties(fields: Editable): Record<string, unknown> {
+  const props: Record<string, unknown> = {};
+  const text = (s: string) => [{ type: "text", text: { content: s } }];
+  if (fields.name !== undefined) props[PP.name] = { title: text(fields.name) };
+  if (fields.color !== undefined) props[PP.color] = { select: { name: fields.color } };
+  if (fields.archived !== undefined) props[PP.archived] = { checkbox: fields.archived };
+  if (fields.order !== undefined) props[PP.order] = { number: fields.order };
+  if (fields.favorite !== undefined) props[PP.favorite] = { checkbox: fields.favorite };
+  if (fields.parentId !== undefined) props[PP.parentId] = { relation: fields.parentId ? [{ id: fields.parentId }] : [] };
+  if (fields.sections !== undefined) props[PP.sections] = { rich_text: fields.sections.length ? text(fields.sections.join("\n")) : [] };
+  return props;
 }
 
 /**
@@ -37,26 +80,29 @@ export class ProjectsApi {
         page_size: 100,
         ...(cursor ? { start_cursor: cursor } : {}),
       });
-      out.push(...res.results.filter((p) => !p.in_trash).map(fromPage));
+      out.push(...res.results.filter((p) => !p.in_trash).map(projectFromPage));
       cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
     } while (cursor);
     return out.sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
   }
 
-  async create(name: string, color: string, order: number): Promise<Project> {
-    const page = await this.client.createPage(this.dataSourceId, {
-      Name: { title: [{ type: "text", text: { content: name } }] },
-      Color: { select: { name: color } },
-      Order: { number: order },
+  async create(fields: Editable & { name: string }): Promise<Project> {
+    const page = await this.client.request<NotionPage>("POST", "/pages", {
+      parent: { type: "data_source_id", data_source_id: this.dataSourceId },
+      properties: toProperties({ color: "gray", ...fields }),
+      ...(fields.emoji ? { icon: { type: "emoji", emoji: fields.emoji } } : {}),
     });
-    return fromPage(page);
+    return projectFromPage(page);
   }
 
-  async update(id: string, fields: Partial<Pick<Project, "name" | "color" | "archived">>): Promise<void> {
-    const props: Record<string, unknown> = {};
-    if (fields.name !== undefined) props.Name = { title: [{ type: "text", text: { content: fields.name } }] };
-    if (fields.color !== undefined) props.Color = { select: { name: fields.color } };
-    if (fields.archived !== undefined) props.Archived = { checkbox: fields.archived };
-    await this.client.updatePage(id, props);
+  async update(id: string, fields: Editable): Promise<void> {
+    const body: Record<string, unknown> = { properties: toProperties(fields) };
+    if (fields.emoji !== undefined) body.icon = fields.emoji ? { type: "emoji", emoji: fields.emoji } : null;
+    await this.client.request("PATCH", `/pages/${id}`, body);
+  }
+
+  /** Moves the project page to the trash. Its tasks keep a dangling relation and show in Inbox. */
+  async trash(id: string): Promise<void> {
+    await this.client.trashPage(id);
   }
 }
