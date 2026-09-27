@@ -183,6 +183,8 @@ export class AppController {
   }
 
   settings(): Settings {
+    // The UI renders before boot() has opened the store (SQLite takes a moment on disk).
+    if (!this.store) return DEFAULT_SETTINGS;
     return { ...DEFAULT_SETTINGS, ...JSON.parse(this.store.getMeta("settings") ?? "{}") };
   }
 

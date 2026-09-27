@@ -125,6 +125,12 @@ describe("AppController", () => {
     expect(app.createTask({ title: "Allowed" })).not.toBeNull();
   });
 
+  it("can render settings before the store has opened", () => {
+    const { app } = setup();
+    expect(app.phase).toBe("loading");
+    expect(app.settings().theme).toBe("system");
+  });
+
   it("starts the trial on first launch and keeps it across restarts", async () => {
     const first = setup();
     await first.app.boot();
