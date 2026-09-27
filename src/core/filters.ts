@@ -15,6 +15,8 @@ type Node =
 
 export interface FilterContext {
   now?: Date;
+  /** Keep completed tasks (the view's own "show completed" decides). */
+  includeDone?: boolean;
   projectName: (projectId: string | null) => string | null;
 }
 
@@ -129,5 +131,5 @@ function evaluate(node: Node, task: Task, ctx: FilterContext): boolean {
 /** Open tasks matching `query`. Throws FilterSyntaxError on bad input. */
 export function applyFilter(query: string, tasks: Task[], ctx: FilterContext): Task[] {
   const node = parseFilter(query);
-  return tasks.filter((t) => !t.done && evaluate(node, t, ctx));
+  return tasks.filter((t) => (ctx.includeDone || !t.done) && evaluate(node, t, ctx));
 }

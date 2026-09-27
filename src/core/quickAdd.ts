@@ -21,6 +21,7 @@ export interface QuickAddContext {
   now?: Date;
   projects?: string[];
   people?: string[];
+  labels?: string[];
 }
 
 const MONTHS: Record<string, number> = {
@@ -100,7 +101,8 @@ export function parseQuickAdd(input: string, ctx: QuickAddContext = {}): QuickAd
     out.project = matchKnown(m[1]!, ctx.projects);
   });
   scan(new RegExp(`${B}@([^\\s#@+]+)`, "g"), "label", (m) => {
-    if (!out.labels.includes(m[1]!)) out.labels.push(m[1]!);
+    const label = matchKnown(m[1]!, ctx.labels);
+    if (!out.labels.includes(label)) out.labels.push(label);
   });
   scan(new RegExp(`${B}\\+([^\\s#@+]+)`, "g"), "person", (m) => {
     out.person = matchKnown(m[1]!, ctx.people);

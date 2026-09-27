@@ -7,30 +7,76 @@ import { useApp } from "../hooks";
 interface Props {
   defaults?: Partial<TaskFields>;
   onDone: () => void;
-  /** Modal keeps the form open after adding for rapid entry. */
+  /** Modal stays open after adding for rapid entry; inline sits in the list. */
   variant: "modal" | "inline";
+  onAdded?: (id: string) => void;
 }
 
-export function QuickAdd({ defaults = {}, onDone, variant }: Props) {
+interface Suggestion {
+  trigger: "#" | "@" | "+";
+  query: string;
+  start: number;
+  options: string[];
+}
+
+/** Finds the #, @ or + token under the caret and what could complete it. */
+function suggestionAt(text: string, caret: number, sources: Record<"#" | "@" | "+", string[]>): Suggestion | null {
+  const before = text.slice(0, caret);
+  const m = before.match(/(?:^|\s)([#@+])([^\s#@+]*)$/);
+  if (!m) return null;
+  const trigger = m[1] as "#" | "@" | "+";
+  const query = m[2]!;
+  const norm = (s: string) => s.toLowerCase().replace(/[\s_-]+/g, "");
+  const options = sources[trigger]
+    .filter((o) => norm(o).includes(norm(query)))
+    .slice(0, 6);
+  return { trigger, query, start: caret - query.length - 1, options };
+}
+
+export function QuickAdd({ defaults = {}, onDone, variant, onAdded }: Props) {
   const app = useApp();
   const [text, setText] = useState("");
+  const [notes, setNotes] = useState("");
+  const [caret, setCaret] = useState(0);
+  const [hot, setHot] = useState(0);
   const [busy, setBusy] = useState(false);
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => ref.current?.focus(), []);
 
+  const projectNames = app.projects.filter((p) => !p.archived).map((p) => p.name);
   const parsed = useMemo(
-    () => parseQuickAdd(text, { projects: app.projects.map((p) => p.name), people: app.people() }),
-    [text, app],
+    () => parseQuickAdd(text, { projects: projectNames, people: app.people(), labels: app.labels() }),
+    [text, app, projectNames.join("|")], // eslint-disable-line react-hooks/exhaustive-deps
   );
-  const known = parsed.project && app.projects.some((p) => p.name.toLowerCase() === parsed.project!.toLowerCase());
+  const suggestion = useMemo(
+    () => suggestionAt(text, caret, { "#": projectNames, "@": app.labels(), "+": app.people() }),
+    [text, caret, app, projectNames.join("|")], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const showSuggest = suggestion && suggestion.options.length > 0;
+  useEffect(() => setHot(0), [suggestion?.query, suggestion?.trigger]);
+
+  const complete = (option: string) => {
+    if (!suggestion) return;
+    // Spaces aren't allowed inside tokens; the parser matches underscores back to the real name.
+    const token = `${suggestion.trigger}${option.replace(/\s+/g, "_")} `;
+    const next = text.slice(0, suggestion.start) + token + text.slice(caret);
+    setText(next);
+    const pos = suggestion.start + token.length;
+    requestAnimationFrame(() => {
+      ref.current?.setSelectionRange(pos, pos);
+      setCaret(pos);
+    });
+  };
 
   const submit = async () => {
     if (!parsed.title || busy) return;
     setBusy(true);
-    await app.quickAdd(text, defaults);
+    const task = await app.quickAdd(text, { ...defaults, ...(notes.trim() ? { notes: notes.trim() } : {}) });
     setBusy(false);
     setText("");
-    if (variant === "inline") ref.current?.focus();
+    setNotes("");
+    if (task) onAdded?.(task.id);
+    ref.current?.focus();
   };
 
   const chips: { label: string; kind: string }[] = [];
@@ -38,26 +84,72 @@ export function QuickAdd({ defaults = {}, onDone, variant }: Props) {
   if (due) chips.push({ label: `📅 ${dueLabel(due)}`, kind: "date" });
   if (parsed.recurrence) chips.push({ label: `🔁 ${parsed.recurrence}`, kind: "recurrence" });
   const projectName = parsed.project ?? app.projectName(defaults.projectId ?? null);
+  const known = parsed.project && projectNames.some((p) => p.toLowerCase() === parsed.project!.toLowerCase());
   if (projectName) chips.push({ label: `# ${projectName}${parsed.project && !known ? " (new)" : ""}`, kind: "project" });
-  for (const l of [...(defaults.labels ?? []), ...parsed.labels]) chips.push({ label: `@${l}`, kind: "label" });
+  if (defaults.section) chips.push({ label: `▤ ${defaults.section}`, kind: "section" });
+  for (const l of [...(defaults.labels ?? []), ...parsed.labels]) chips.push({ label: `⌗ ${l}`, kind: "label" });
   const person = parsed.person ?? defaults.person;
   if (person) chips.push({ label: `👤 ${person}`, kind: "person" });
-  if (parsed.priority !== 4) chips.push({ label: `p${parsed.priority}`, kind: `p${parsed.priority}` });
+  if (parsed.priority !== 4) chips.push({ label: `P${parsed.priority}`, kind: `p${parsed.priority}` });
 
   const form = (
-    <div className={`quick-add ${variant}`}>
+    <div className={`quick-add ${variant}`} onKeyDown={(e) => e.stopPropagation()}>
       <input
         ref={ref}
+        className="qa-input"
         value={text}
-        placeholder="e.g. Call Ravi tomorrow 5pm #Sales +Ravi @urgent p1"
-        onChange={(e) => setText(e.target.value)}
+        placeholder="Task name — try “Call Priya tomorrow 5pm p1 #Work @waiting”"
+        onChange={(e) => {
+          setText(e.target.value);
+          setCaret(e.target.selectionStart ?? e.target.value.length);
+        }}
+        onSelect={(e) => setCaret((e.target as HTMLInputElement).selectionStart ?? 0)}
         onKeyDown={(e) => {
+          if (showSuggest) {
+            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+              e.preventDefault();
+              const n = suggestion!.options.length;
+              setHot((h) => (h + (e.key === "ArrowDown" ? 1 : n - 1)) % n);
+              return;
+            }
+            if (e.key === "Tab" || e.key === "Enter") {
+              e.preventDefault();
+              complete(suggestion!.options[hot]!);
+              return;
+            }
+          }
           if (e.key === "Enter") {
             e.preventDefault();
             void submit();
           }
           if (e.key === "Escape") onDone();
-          e.stopPropagation();
+        }}
+      />
+      {showSuggest && (
+        <div className="suggest">
+          {suggestion!.options.map((o, i) => (
+            <button
+              key={o}
+              className={`menu-item ${i === hot ? "hot" : ""}`}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                complete(o);
+              }}
+            >
+              <span className="hash">{suggestion!.trigger === "#" ? "#" : suggestion!.trigger === "@" ? "⌗" : "👤"}</span> {o}
+            </button>
+          ))}
+          <div className="hint">⇥ to complete</div>
+        </div>
+      )}
+      <input
+        className="qa-notes"
+        value={notes}
+        placeholder="Description"
+        onChange={(e) => setNotes(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") void submit();
+          if (e.key === "Escape") onDone();
         }}
       />
       <div className="chips">
@@ -66,7 +158,7 @@ export function QuickAdd({ defaults = {}, onDone, variant }: Props) {
             {c.label}
           </span>
         ))}
-        {!chips.length && <span className="hint">Dates, #project, @label, +person, p1–p4, every …</span>}
+        {!chips.length && <span className="hint">Dates, p1–p4, #project, @tag, +person, every …</span>}
       </div>
       <div className="quick-add-actions">
         <button className="ghost" onClick={onDone}>

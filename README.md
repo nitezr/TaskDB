@@ -2,9 +2,15 @@
 
 Todoist-style task manager for macOS that keeps every task in your own Notion workspace.
 
-- Quick add in plain language: `Call Ravi tomorrow 5pm #Sales +Ravi @urgent p1 every mon`
-- Inbox, Today, Upcoming, Projects, Labels, People, saved Filters
-- Sub-tasks, recurring tasks, reminders, global quick-add hotkey (⌘⇧Space), dark mode
+- **List, Board and Calendar** for every view; the Display menu sets layout, grouping, sorting and filters, remembered per view
+- **Board columns** by day, section, priority, tag or project; drag cards between them; reschedule all overdue in one step
+- **Calendar**: day, 3-day, week and month; drag a task to a day or hour; sleeping hours hidden
+- **Quick add in one line**: `Call Priya tomorrow 5pm p1 #Work @waiting +Priya every mon`, with #, @ and + autocomplete
+- **Projects** with emoji, colours, nesting, favourites, sections and templates
+- **Details panel**: title, notes, project, section, date/time, repeat, priority, tags, person; step through tasks with ↑/↓
+- **Keyboard-first**: every action is one key and remappable; ⌘K palette; ⌘Z undo; ⌘[ ⌘] back/forward
+- **Filters & Tags**: saved filters with live counts; rename or remove a tag everywhere
+- Recurring tasks, reminders, global quick-add hotkey (⌘⇧Space), welcome tour with a practice project, dark mode
 - Local-first sync designed around Notion's rate limit — see [SPEC.md](SPEC.md)
 
 ## Try it

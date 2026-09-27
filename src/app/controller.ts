@@ -26,6 +26,7 @@ import {
   VALIDATE_EVERY_MS,
 } from "../license/license";
 import type { Platform } from "./platform";
+import { DEFAULT_PREFS, type DisplayPrefs } from "./display";
 
 export interface SavedFilter {
   id: string;
@@ -44,9 +45,33 @@ export interface ProjectTemplate {
 export interface Settings {
   theme: "system" | "light" | "dark";
   accent: string;
+  font: "avenir" | "system";
+  /** Calendar hour grids hide these hours (Remit's sleeping-hours toggle). */
+  hideSleep: boolean;
+  sleepStart: number;
+  sleepEnd: number;
+  completionSound: boolean;
+  sidebarHidden: boolean;
+  /** Collapsed sidebar sections and parent projects. */
+  collapsed: string[];
+  /** Remapped shortcuts: action id -> key combos. */
+  shortcuts: Record<string, string[]>;
+  tourDone: boolean;
 }
 
-export const DEFAULT_SETTINGS: Settings = { theme: "system", accent: "#dc4c3e" };
+export const DEFAULT_SETTINGS: Settings = {
+  theme: "system",
+  accent: "#dc4c3e",
+  font: "avenir",
+  hideSleep: true,
+  sleepStart: 22,
+  sleepEnd: 8,
+  completionSound: true,
+  sidebarHidden: false,
+  collapsed: [],
+  shortcuts: {},
+  tourDone: false,
+};
 const IDLE_AFTER_MS = 10 * 60_000;
 const PROJECT_REFRESH_MS = 30 * 60_000;
 
@@ -236,7 +261,7 @@ export class AppController {
   /** Parses quick-add text and creates the task. Unknown #projects are created in Notion. */
   async quickAdd(text: string, defaults: Partial<TaskFields> = {}): Promise<Task | null> {
     if (!this.guard()) return null;
-    const r = parseQuickAdd(text, { projects: this.projects.map((p) => p.name), people: this.people() });
+    const r = parseQuickAdd(text, { projects: this.projects.map((p) => p.name), people: this.people(), labels: this.labels() });
     if (!r.title) return null;
     let projectId = defaults.projectId ?? null;
     if (r.project) {
@@ -557,6 +582,67 @@ export class AppController {
 
   saveSettings(settings: Settings): void {
     this.store.setMeta("settings", JSON.stringify(settings));
+    this.emit();
+  }
+
+  updateSettings(patch: Partial<Settings>): void {
+    this.saveSettings({ ...this.settings(), ...patch });
+  }
+
+  toggleCollapsed(key: string): void {
+    const c = new Set(this.settings().collapsed);
+    c.has(key) ? c.delete(key) : c.add(key);
+    this.updateSettings({ collapsed: [...c] });
+  }
+
+  displayPrefs(viewKey: string): DisplayPrefs {
+    if (!this.store) return DEFAULT_PREFS;
+    const all = JSON.parse(this.store.getMeta("displayPrefs") ?? "{}");
+    return { ...DEFAULT_PREFS, ...(all[viewKey] ?? {}) };
+  }
+
+  setDisplayPrefs(viewKey: string, patch: Partial<DisplayPrefs> | null): void {
+    const all = JSON.parse(this.store.getMeta("displayPrefs") ?? "{}");
+    if (patch === null) delete all[viewKey];
+    else all[viewKey] = { ...(all[viewKey] ?? {}), ...patch };
+    this.store.setMeta("displayPrefs", JSON.stringify(all));
+    this.emit();
+  }
+
+  // ---- Tags & people (rename or remove everywhere) ----
+
+  renameLabel(from: string, to: string): void {
+    const clean = to.trim().replace(/^@/, "");
+    if (!clean || clean === from) return;
+    this.transaction(() => {
+      for (const t of this.tasks().filter((t) => t.labels.includes(from))) {
+        this.updateTask(t.id, { labels: [...new Set(t.labels.map((l) => (l === from ? clean : l)))] });
+      }
+    }, `Renamed tag ${from}`);
+  }
+
+  removeLabel(name: string): void {
+    this.transaction(() => {
+      for (const t of this.tasks().filter((t) => t.labels.includes(name))) {
+        this.updateTask(t.id, { labels: t.labels.filter((l) => l !== name) });
+      }
+    }, `Removed tag ${name}`);
+  }
+
+  renamePerson(from: string, to: string): void {
+    const clean = to.trim();
+    if (!clean || clean === from) return;
+    this.transaction(() => {
+      for (const t of this.tasks().filter((t) => t.person === from)) this.updateTask(t.id, { person: clean });
+    }, `Renamed ${from}`);
+    this.store.setMeta("people", JSON.stringify(this.extraPeople().map((p) => (p === from ? clean : p))));
+  }
+
+  removePerson(name: string): void {
+    this.transaction(() => {
+      for (const t of this.tasks().filter((t) => t.person === name)) this.updateTask(t.id, { person: null });
+    }, `Removed ${name}`);
+    this.store.setMeta("people", JSON.stringify(this.extraPeople().filter((p) => p !== name)));
     this.emit();
   }
 
