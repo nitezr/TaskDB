@@ -99,6 +99,11 @@ export async function tauriPlatform(): Promise<Platform> {
     },
     setBadge(count) {
       void win.setBadgeCount(count > 0 ? count : undefined).catch(() => undefined);
+      // The same count beside the menu-bar icon, so it's visible with the Dock hidden too.
+      void import("@tauri-apps/api/tray")
+        .then(({ TrayIcon }) => TrayIcon.getById("tray"))
+        .then((tray) => tray?.setTitle(count > 0 ? String(count) : null))
+        .catch(() => undefined);
     },
   };
 }
