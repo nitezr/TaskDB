@@ -3785,3 +3785,11 @@ input[type="time"]::-webkit-calendar-picker-indicator {
     grid-template-columns: 1fr;
   }
 }
+.dp-row select {
+  padding: 0 24px 0 8px;
+  height: 26px;
+  background-position: right 7px center;
+}
+.dp-icon {
+  color: var(--muted);
+}
