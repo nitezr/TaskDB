@@ -73,7 +73,9 @@ describe("buildViewModel", () => {
       { title: "B", priority: 4 },
     ]);
     const vm = buildViewModel({ kind: "inbox" }, app, { ...DEFAULT_PREFS, groupBy: "priority" }, { now: NOW });
-    expect(vm.groups.map((g) => g.tasks.length)).toEqual([1, 0, 0, 1]);
+    // Empty priority groups are dropped, like Remit.
+    expect(vm.groups.map((g) => g.title)).toEqual(["Priority 1", "Priority 4"]);
+    expect(vm.groups.map((g) => g.tasks.length)).toEqual([1, 1]);
     const only = buildViewModel({ kind: "inbox" }, app, { ...DEFAULT_PREFS, priority: 1 }, { now: NOW });
     expect(only.count).toBe(1);
   });
@@ -102,5 +104,17 @@ describe("shortcuts", () => {
   it("renders combos with Mac glyphs", () => {
     expect(displayCombo("shift+t")).toBe("⇧T");
     expect(displayCombo("meta+k")).toBe("⌘K");
+  });
+
+  it("shows a week of Upcoming, then later days with tasks behind a 'Nothing until' line", async () => {
+    const app = await appWith([
+      { title: "Soon", due: "2026-09-27" },
+      { title: "Far", due: "2026-10-20" },
+    ]);
+    const vm = buildViewModel({ kind: "upcoming" }, app, DEFAULT_PREFS, { now: NOW, upcomingOpenEnded: true });
+    expect(vm.groups.length).toBe(8);
+    expect(vm.groups[7]!.title).toBe("20 Oct · Tuesday");
+    expect(vm.groups[7]!.gap).toBe("Nothing until 20 Oct");
+    expect(vm.groups[1]!.gap).toBeUndefined();
   });
 });

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { addDays, addMonths, dueDay, formatDue, hasTime, parseDue, startOfDay, toDateStr } from "../../core/dates";
 import type { Task, TaskFields } from "../../types";
 import type { CalendarRange } from "../display";
@@ -61,19 +61,25 @@ export function CalendarView(p: Props) {
     }
   };
 
+  const days = daysFor(anchor, p.range);
+  const short = (d: string) => parseDue(d).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  /** The span actually on screen, not just the month (Remit: "Sep 29 – Oct 5"). */
   const title =
     p.range === "month"
       ? anchor.toLocaleDateString(undefined, { month: "long", year: "numeric" })
-      : anchor.toLocaleDateString(undefined, { month: "long", year: "numeric", day: p.range === "day" ? "numeric" : undefined });
+      : p.range === "day"
+        ? anchor.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })
+        : `${short(days[0]!)} – ${short(days[days.length - 1]!)}`;
+  const undated = p.tasks.filter((t) => !t.due && !t.done);
 
-  const item = (t: Task, showTime = true) => {
+  const item = (t: Task, showTime = true, style?: React.CSSProperties) => {
     const project = app.project(t.projectId);
     return (
       <div
         key={t.id}
-        className={`cal-item ${t.done ? "done" : ""}`}
-        style={p.selected === t.id ? { boxShadow: "0 0 0 2px var(--accent)" } : undefined}
+        className={`cal-item ${t.done ? "done" : ""} ${p.selected === t.id ? "selected" : ""}`}
         title={t.title}
+        style={style}
         onClick={(e) => {
           e.stopPropagation();
           p.onSelect(t.id);
@@ -89,7 +95,7 @@ export function CalendarView(p: Props) {
         }}
         {...dragProps(t.id)}
       >
-        <span className={`dot ${project ? `c-${project.color}` : ""}`} style={!project ? { background: `var(--p${t.priority})` } : undefined} />
+        <span className="dot" style={{ background: `var(--p${t.priority})` }} title={project?.name} />
         {showTime && t.due && hasTime(t.due) && (
           <span className="time">{parseDue(t.due).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</span>
         )}
@@ -101,17 +107,29 @@ export function CalendarView(p: Props) {
   return (
     <div className="cal">
       <div className="cal-toolbar">
-        <button className="icon-btn" onClick={() => step(-1)} aria-label="Previous">
-          ‹
-        </button>
         <h2>{title}</h2>
-        <button className="icon-btn" onClick={() => step(1)} aria-label="Next">
-          ›
-        </button>
-        <button className="link" onClick={() => setAnchor(startOfDay(new Date()))}>
-          Today
-        </button>
+        <div className="board-nav">
+          <button onClick={() => step(-1)} aria-label="Previous">
+            ‹
+          </button>
+          <button className="today-btn" onClick={() => setAnchor(startOfDay(new Date()))}>
+            Today
+          </button>
+          <button onClick={() => step(1)} aria-label="Next">
+            ›
+          </button>
+        </div>
         <span className="grow" />
+        {p.range !== "month" && (
+          <button
+            className={`icon-btn moon ${settings.hideSleep ? "on" : ""}`}
+            onClick={() => app.updateSettings({ hideSleep: !settings.hideSleep })}
+            title={settings.hideSleep ? "Showing waking hours only — click to show the full day" : "Hide sleeping hours"}
+            aria-label="Toggle sleeping hours"
+          >
+            {settings.hideSleep ? "☾" : "☽"}
+          </button>
+        )}
         <div className="segmented">
           {RANGES.map(([r, label]) => (
             <button key={r} className={p.range === r ? "on" : ""} onClick={() => p.onRange(r)}>
@@ -122,13 +140,21 @@ export function CalendarView(p: Props) {
       </div>
 
       {p.range === "month" ? (
-        <MonthGrid anchor={anchor} today={today} byDay={byDay} item={item} moveTo={moveTo} onAddOn={p.onAddOn} onShowDay={(d) => {
-          setAnchor(parseDue(d));
-          p.onRange("day");
-        }} />
+        <>
+          <MonthGrid anchor={anchor} today={today} byDay={byDay} item={item} moveTo={moveTo} onAddOn={p.onAddOn} onShowDay={(d) => {
+            setAnchor(parseDue(d));
+            p.onRange("day");
+          }} />
+          {undated.length > 0 && (
+            <div className="cal-undated">
+              <h5>No date</h5>
+              <div className="cal-undated-row">{undated.map((t) => item(t, false))}</div>
+            </div>
+          )}
+        </>
       ) : (
         <HourGrid
-          days={daysFor(anchor, p.range)}
+          days={days}
           today={today}
           byDay={byDay}
           item={item}
@@ -148,7 +174,7 @@ function daysFor(anchor: Date, range: CalendarRange): string[] {
   return [0, 1, 2, 3, 4, 5, 6].map((i) => toDateStr(addDays(sunday, i)));
 }
 
-/** Sleeping hours narrow the axis rather than hiding tasks; late tasks sit in the nearest slot. */
+/** Sleeping hours narrow the axis; tasks timed outside it move to the All-day row. */
 export function visibleHours(hide: boolean, sleepStart: number, sleepEnd: number): number[] {
   if (!hide) return Array.from({ length: 24 }, (_, i) => i);
   if (sleepEnd < sleepStart) return Array.from({ length: sleepStart - sleepEnd }, (_, i) => sleepEnd + i);
@@ -167,7 +193,7 @@ function MonthGrid({
   anchor: Date;
   today: string;
   byDay: Map<string, Task[]>;
-  item: (t: Task, showTime?: boolean) => JSX.Element;
+  item: (t: Task, showTime?: boolean, style?: React.CSSProperties) => JSX.Element;
   moveTo: (id: string, day: string) => void;
   onAddOn: (day: string) => void;
   onShowDay: (day: string) => void;
@@ -183,7 +209,7 @@ function MonthGrid({
           <div key={d}>{d}</div>
         ))}
       </div>
-      <div className="cal-month" style={{ gridTemplateRows: `repeat(${weeks}, minmax(110px, 1fr))` }}>
+      <div className="cal-month" style={{ gridTemplateRows: `repeat(${weeks}, minmax(74px, 1fr))` }}>
         {cells.map((d) => {
           const key = toDateStr(d);
           const list = byDay.get(key) ?? [];
@@ -191,7 +217,7 @@ function MonthGrid({
           return (
             <div key={key} className={`cal-cell ${other ? "other" : ""}`} onDoubleClick={() => onAddOn(key)} {...dropProps((id) => moveTo(id, key))}>
               <div className="cal-date">
-                <span className={key === today ? "cal-date today" : ""}>{d.getDate()}</span>
+                <span className={key === today ? "today" : ""}>{d.getDate()}</span>
               </div>
               {list.slice(0, 3).map((t) => item(t, false))}
               {list.length > 3 && (
@@ -207,6 +233,8 @@ function MonthGrid({
   );
 }
 
+const HOUR = 48;
+
 function HourGrid({
   days,
   today,
@@ -219,15 +247,24 @@ function HourGrid({
   days: string[];
   today: string;
   byDay: Map<string, Task[]>;
-  item: (t: Task, showTime?: boolean) => JSX.Element;
+  item: (t: Task, showTime?: boolean, style?: React.CSSProperties) => JSX.Element;
   moveTo: (id: string, day: string, hour?: number) => void;
   hours: number[];
   onAddOn: (day: string) => void;
 }) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(t);
+  }, []);
   const style = { "--days": days.length } as React.CSSProperties;
-  const first = hours[0] ?? 0;
-  const last = hours[hours.length - 1] ?? 23;
-  const slotFor = (h: number) => Math.min(last, Math.max(first, h));
+  const visible = new Set(hours);
+  /** Timed tasks outside the visible hours go to All-day rather than showing at a wrong time. */
+  const inGrid = (t: Task) => hasTime(t.due!) && visible.has(parseDue(t.due!).getHours());
+  const allDay = days.map((d) => (byDay.get(d) ?? []).filter((t) => !inGrid(t)));
+  const busiest = Math.max(0, ...allDay.map((l) => l.length));
+  const nowIdx = hours.indexOf(now.getHours());
+
   return (
     <div className="cal-week">
       <div className="cal-week-head" style={style}>
@@ -242,50 +279,52 @@ function HourGrid({
           );
         })}
       </div>
-      <div className="allday-row" style={style}>
-        <div className="allday-label">all-day</div>
-        {days.map((d) => (
-          <div key={d} className="allday-cell" onDoubleClick={() => onAddOn(d)} {...dropProps((id) => moveTo(id, d))}>
-            {(byDay.get(d) ?? []).filter((t) => !hasTime(t.due!)).map((t) => item(t, false))}
+      <div className="allday-row" style={{ ...style, height: Math.min(96, Math.max(30, busiest * 24 + 8)) }}>
+        <div className="allday-label">All-day</div>
+        {days.map((d, i) => (
+          <div key={d} className={`allday-cell ${d === today ? "today" : ""}`} onDoubleClick={() => onAddOn(d)} {...dropProps((id) => moveTo(id, d))}>
+            {allDay[i]!.map((t) => item(t, hasTime(t.due!)))}
           </div>
         ))}
       </div>
-      <div className="hour-grid" style={style}>
-        {hours.map((h) => (
-          <HourRow key={h} h={h} days={days} byDay={byDay} item={item} moveTo={moveTo} slotFor={slotFor} />
-        ))}
+      <div className="hour-scroll">
+        <div className="hour-grid" style={style}>
+          {hours.map((h) => (
+            <HourRow key={h} h={h} days={days} today={today} moveTo={moveTo} />
+          ))}
+          {/* Tasks sit at their exact minute, above the hour cells that take drops. */}
+          <div className="hour-layer" style={style}>
+            <div />
+            {days.map((d) => {
+              let lastTop = -Infinity;
+              return (
+                <div key={d} className="hour-col">
+                  {(byDay.get(d) ?? []).filter(inGrid).map((t) => {
+                    const at = parseDue(t.due!);
+                    let top = hours.indexOf(at.getHours()) * HOUR + (at.getMinutes() / 60) * HOUR;
+                    if (top < lastTop + 21) top = lastTop + 21; // cascade tasks that share a time
+                    lastTop = top;
+                    return item(t, true, { top });
+                  })}
+                  {d === today && nowIdx >= 0 && <div className="now-line" style={{ top: nowIdx * HOUR + (now.getMinutes() / 60) * HOUR }} />}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-function HourRow({
-  h,
-  days,
-  byDay,
-  item,
-  moveTo,
-  slotFor,
-}: {
-  h: number;
-  days: string[];
-  byDay: Map<string, Task[]>;
-  item: (t: Task, showTime?: boolean) => JSX.Element;
-  moveTo: (id: string, day: string, hour?: number) => void;
-  slotFor: (h: number) => number;
-}) {
+function HourRow({ h, days, today, moveTo }: { h: number; days: string[]; today: string; moveTo: (id: string, day: string, hour?: number) => void }) {
   const label = new Date(2000, 0, 1, h).toLocaleTimeString(undefined, { hour: "numeric" });
   return (
     <>
       <div className="hour-label">{label}</div>
       {days.map((d) => (
-        <div key={d} className="hour-slot" {...dropProps((id) => moveTo(id, d, h))}>
-          {(byDay.get(d) ?? [])
-            .filter((t) => hasTime(t.due!) && slotFor(parseDue(t.due!).getHours()) === h)
-            .map((t) => item(t))}
-        </div>
+        <div key={d} className={`hour-slot ${d === today ? "today" : ""}`} {...dropProps((id) => moveTo(id, d, h))} />
       ))}
     </>
   );
 }
-

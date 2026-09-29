@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_FIELDS, type Task } from "../types";
 import { applyFilter, FilterSyntaxError } from "./filters";
 import { parseQuickAdd } from "./quickAdd";
+import { dayHeading, dueLabel } from "./dates";
 import { nextDue, parseRule } from "./recurrence";
 
 // Saturday 26 Sep 2026, 10:00 local.
@@ -115,5 +116,19 @@ describe("filters", () => {
   it("reports syntax errors", () => {
     expect(() => run("p1 &")).toThrow(FilterSyntaxError);
     expect(() => run("(p1")).toThrow(FilterSyntaxError);
+  });
+});
+
+describe("date labels", () => {
+  // NOW is Saturday 26 Sep 2026.
+  it("uses full weekday names and drops a midnight time", () => {
+    expect(dueLabel("2026-09-29", NOW)).toBe("Tuesday");
+    expect(dueLabel("2026-09-27T00:00:00", NOW)).toBe("Tomorrow");
+    expect(dueLabel("2026-09-26T17:00:00", NOW)).toBe("Today 5:00 PM");
+    expect(dueLabel("2026-09-25", NOW)).toBe("Yesterday");
+  });
+  it("lets Today and Tomorrow replace the weekday in headings", () => {
+    expect(dayHeading("2026-09-26", NOW)).toBe("26 Sep · Today");
+    expect(dayHeading("2026-10-01", NOW)).toBe("1 Oct · Thursday");
   });
 });

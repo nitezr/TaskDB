@@ -131,3 +131,80 @@ export const CalendarSmallIcon = (p?: IconProps) =>
     </>,
     { size: 11, ...p },
   );
+
+export const ListLayoutIcon = (p?: IconProps) =>
+  svg(
+    <>
+      <path d="M5.5 4h8M5.5 8h8M5.5 12h8" />
+      <circle cx="2.8" cy="4" r=".6" fill="currentColor" />
+      <circle cx="2.8" cy="8" r=".6" fill="currentColor" />
+      <circle cx="2.8" cy="12" r=".6" fill="currentColor" />
+    </>,
+    p,
+  );
+
+export const BoardLayoutIcon = (p?: IconProps) =>
+  svg(
+    <>
+      <rect x="1.8" y="2.5" width="3.6" height="11" rx="1" />
+      <rect x="6.2" y="2.5" width="3.6" height="7.5" rx="1" />
+      <rect x="10.6" y="2.5" width="3.6" height="9.5" rx="1" />
+    </>,
+    p,
+  );
+
+export const CalendarLayoutIcon = (p?: IconProps) =>
+  svg(
+    <>
+      <rect x="2" y="3" width="12" height="11" rx="2" />
+      <path d="M2 6.3h12M5.2 1.8v2.4M10.8 1.8v2.4M5 9h.01M8 9h.01M11 9h.01M5 11.5h.01M8 11.5h.01" />
+    </>,
+    p,
+  );
+
+export const ChevronUpIcon = (p?: IconProps) => svg(<path d="m4 10 4-4 4 4" />, { size: 14, ...p });
+export const ChevronDownIcon = (p?: IconProps) => svg(<path d="m4 6 4 4 4-4" />, { size: 14, ...p });
+export const CloseIcon = (p?: IconProps) => svg(<path d="m4 4 8 8M12 4l-8 8" />, { size: 14, ...p });
+export const TrashIcon = (p?: IconProps) =>
+  svg(
+    <>
+      <path d="M2.8 4.3h10.4M6.3 4.3V2.9a.9.9 0 0 1 .9-.9h1.6a.9.9 0 0 1 .9.9v1.4" />
+      <path d="m4 4.3.7 8.6a1.2 1.2 0 0 0 1.2 1.1h4.2a1.2 1.2 0 0 0 1.2-1.1l.7-8.6M6.7 7v4.2M9.3 7v4.2" />
+    </>,
+    { size: 14, ...p },
+  );
+
+export const KeyboardIcon = (p?: IconProps) =>
+  svg(
+    <>
+      <rect x="1.5" y="4" width="13" height="8.5" rx="1.6" />
+      <path d="M4 6.8h.01M6.5 6.8h.01M9 6.8h.01M11.5 6.8h.01M5 9.7h6" />
+    </>,
+    p,
+  );
+export const SyncIcon = (p?: IconProps) =>
+  svg(
+    <>
+      <path d="M13 6.2A5.2 5.2 0 0 0 3.6 4.5M3 9.8a5.2 5.2 0 0 0 9.4 1.7" />
+      <path d="M3.4 2.3v2.4h2.4M12.6 13.7v-2.4h-2.4" />
+    </>,
+    p,
+  );
+export const KeyIcon = (p?: IconProps) =>
+  svg(
+    <>
+      <circle cx="5.2" cy="10.8" r="2.8" />
+      <path d="m7.2 8.8 6-6M11.2 4.8l1.6 1.6M9.8 6.2l1.2 1.2" />
+    </>,
+    p,
+  );
+export const ResetIcon = (p?: IconProps) => svg(<path d="M5.5 3.5 2.8 6.2l2.7 2.7M3 6.2h6.3a3.7 3.7 0 0 1 0 7.4H7" />, { size: 11, ...p });
+export const PencilIcon = (p?: IconProps) => svg(<path d="M10.8 2.7a1.6 1.6 0 0 1 2.3 2.3l-7.6 7.6-3 .7.7-3Z" />, { size: 13, ...p });
+export const CheckCircleIcon = (p?: IconProps) =>
+  svg(
+    <>
+      <circle cx="8" cy="8" r="6.2" />
+      <path d="m5.3 8.2 1.9 1.9 3.6-3.9" />
+    </>,
+    p,
+  );

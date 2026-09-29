@@ -89,6 +89,8 @@ export interface Group {
   overdue?: boolean;
   /** Project sections can be renamed and reordered. */
   section?: { projectId: string; name: string | null };
+  /** Slim "Nothing until 12 Oct" line shown above a day that follows empty days (Upcoming). */
+  gap?: string;
 }
 
 export interface ViewModel {
@@ -207,6 +209,8 @@ export interface BuildOptions {
   /** First day shown by Upcoming (week navigation). */
   upcomingStart?: Date;
   upcomingDays?: number;
+  /** List Upcoming: after the fixed days, keep going with every later day that has tasks. */
+  upcomingOpenEnded?: boolean;
 }
 
 export function buildViewModel(view: View, app: AppController, prefs: DisplayPrefs, opts: BuildOptions = {}): ViewModel {
@@ -238,18 +242,21 @@ export function buildViewModel(view: View, app: AppController, prefs: DisplayPre
   } else if (groupBy === "dueDate") {
     groups = groupByDate(sorted, now, view.kind === "upcoming" ? opts : { upcomingDays: 0 }, view.kind === "upcoming");
   } else if (groupBy === "priority") {
-    groups = ([1, 2, 3, 4] as Priority[]).map((p) => ({
-      key: `p${p}`,
-      title: `Priority ${p}`,
-      tasks: sorted.filter((t) => t.priority === p),
-      patch: { priority: p },
-    }));
+    // Empty groups are dropped (Remit): a "Priority 3" header with nothing under it is noise.
+    groups = ([1, 2, 3, 4] as Priority[])
+      .map((p) => ({
+        key: `p${p}`,
+        title: `Priority ${p}`,
+        tasks: sorted.filter((t) => t.priority === p),
+        patch: { priority: p },
+      }))
+      .filter((g) => g.tasks.length);
   } else if (groupBy === "label") {
     const labels = [...new Set(sorted.flatMap((t) => t.labels))].sort((a, b) => a.localeCompare(b));
     groups = [
       ...labels.map((l) => ({ key: `l:${l}`, title: l, tasks: sorted.filter((t) => t.labels.includes(l)), patch: { labels: [l] } })),
       { key: "l:none", title: "No tag", tasks: sorted.filter((t) => !t.labels.length), patch: { labels: [] } },
-    ];
+    ].filter((g) => g.tasks.length);
   } else if (groupBy === "project") {
     groups = [
       { key: "inbox", title: "Inbox", tasks: sorted.filter((t) => !app.project(t.projectId)), patch: { projectId: null, section: null } },
@@ -267,7 +274,8 @@ export function buildViewModel(view: View, app: AppController, prefs: DisplayPre
     groups = [
       {
         key: "s:none",
-        title: "(No section)",
+        // Without sections a project reads as a plain list, so no header at all.
+        title: names.length ? "(No section)" : "",
         tasks: sorted.filter((t) => !t.section || !names.includes(t.section)),
         patch: { section: null },
         section: projectId ? { projectId, name: null } : undefined,
@@ -279,7 +287,7 @@ export function buildViewModel(view: View, app: AppController, prefs: DisplayPre
         patch: { section: n, ...(projectId ? { projectId } : {}) },
         section: projectId ? { projectId, name: n } : undefined,
       })),
-    ];
+    ].filter((g) => g.key !== "s:none" || g.tasks.length || !names.length);
   }
 
   return {
@@ -301,18 +309,31 @@ function groupByDate(tasks: Task[], now: Date, opts: BuildOptions, upcoming: boo
 
   if (upcoming) {
     const start = startOfDay(opts.upcomingStart ?? now);
-    const days = opts.upcomingDays ?? 14;
+    const days = opts.upcomingDays ?? 7;
+    const shown: string[] = [];
     for (let i = 0; i < days; i++) {
       const day = toDateStr(addDays(start, i));
-      if (day < today) continue;
+      if (day >= today) shown.push(day);
+    }
+    if (opts.upcomingOpenEnded) {
+      // Every later day that has something, however far out, so nothing counted is unreachable.
+      const last = shown[shown.length - 1] ?? today;
+      const later = [...new Set(tasks.filter((t) => t.due && dueDay(t.due) > last).map((t) => dueDay(t.due!)))].sort();
+      shown.push(...later);
+    }
+    shown.forEach((day, i) => {
+      const prev = shown[i - 1];
+      const d = parseDue(day);
+      const gap = prev && toDateStr(addDays(parseDue(prev), 1)) !== day ? `Nothing until ${d.getDate()} ${d.toLocaleDateString(undefined, { month: "short" })}` : undefined;
       groups.push({
         key: day,
         title: dayHeading(day, now),
         tone: day === today ? "today" : undefined,
         tasks: tasks.filter((t) => t.due && dueDay(t.due) === day),
         patch: { due: day },
+        gap,
       });
-    }
+    });
     return groups;
   }
 

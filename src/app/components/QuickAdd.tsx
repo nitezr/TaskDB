@@ -26,10 +26,14 @@ function suggestionAt(text: string, caret: number, sources: Record<"#" | "@" | "
   if (!m) return null;
   const trigger = m[1] as "#" | "@" | "+";
   const query = m[2]!;
-  const norm = (s: string) => s.toLowerCase().replace(/[\s_-]+/g, "");
+  // Leading emoji and punctuation are skipped so "🤝 Acme" is found by "ac".
+  const norm = (s: string) => s.toLowerCase().replace(/^[^\p{L}\p{N}]+/u, "").replace(/[\s_-]+/g, "");
+  const q = norm(query);
+  // Prefix matches first, then anywhere; no hard cap (a cap hid most of a long project list).
+  const rank = (o: string) => (norm(o).startsWith(q) ? 0 : norm(o).includes(q) ? 1 : 2);
   const options = sources[trigger]
-    .filter((o) => norm(o).includes(norm(query)))
-    .slice(0, 6);
+    .filter((o) => rank(o) < 2)
+    .sort((a, b) => rank(a) - rank(b));
   return { trigger, query, start: caret - query.length - 1, options };
 }
 
@@ -54,6 +58,9 @@ export function QuickAdd({ defaults = {}, onDone, variant, onAdded }: Props) {
   );
   const showSuggest = suggestion && suggestion.options.length > 0;
   useEffect(() => setHot(0), [suggestion?.query, suggestion?.trigger]);
+  useEffect(() => {
+    document.querySelector(".suggest .menu-item.hot")?.scrollIntoView({ block: "nearest" });
+  }, [hot]);
 
   const complete = (option: string) => {
     if (!suggestion) return;
@@ -136,7 +143,14 @@ export function QuickAdd({ defaults = {}, onDone, variant, onAdded }: Props) {
                 complete(o);
               }}
             >
-              <span className="hash">{suggestion!.trigger === "#" ? "#" : suggestion!.trigger === "@" ? "⌗" : "👤"}</span> {o}
+              {suggestion!.trigger === "#" ? (
+                <span className={`dot c-${app.projects.find((p) => p.name === o)?.color ?? "gray"}`} />
+              ) : suggestion!.trigger === "@" ? (
+                <span className="dot" style={{ background: "#6b7280" }} />
+              ) : (
+                <span className="suggest-person">👤</span>
+              )}
+              {o}
             </button>
           ))}
           <div className="hint">⇥ to complete</div>

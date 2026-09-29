@@ -5,7 +5,7 @@ import { BoardView } from "./components/BoardView";
 import { CalendarView } from "./components/CalendarView";
 import { CommandPalette, type PaletteAction } from "./components/CommandPalette";
 import { DetailPeek } from "./components/DetailPeek";
-import { DisplayMenu } from "./components/DisplayMenu";
+import { changedCount, DisplayMenu } from "./components/DisplayMenu";
 import { FiltersTags } from "./components/FiltersTags";
 import { LabelsPopover } from "./components/LabelsPopover";
 import { LicenseBanner, Paywall } from "./components/License";
@@ -18,11 +18,11 @@ import { Sidebar } from "./components/Sidebar";
 import { Tour } from "./components/Tour";
 import { askConfirm, ConfirmHost } from "./confirm";
 import type { ScheduleTarget } from "./controller";
-import { buildViewModel, type DisplayPrefs, sameView, type View, viewKey, viewTasks, visibleOrder } from "./display";
+import { buildViewModel, DEFAULT_PREFS, type DisplayPrefs, sameView, type View, viewKey, viewTasks, visibleOrder } from "./display";
 import { useApp } from "./hooks";
 import { actionForCombo, comboFromEvent } from "./shortcuts";
 import { type Anchor, anchorOf, type MenuEntry, playCompleteSound, Popover, useMenu } from "./ui";
-import { BackIcon, DisplayIcon, ForwardIcon, SearchIcon, SidebarIcon } from "./icons";
+import { BackIcon, CloseIcon, DisplayIcon, ForwardIcon, SearchIcon, SidebarIcon } from "./icons";
 
 interface Toast {
   text: string;
@@ -75,7 +75,8 @@ function Main() {
   const upcomingStart = addDays(startOfDay(new Date()), upcomingWeek * 7);
   const vm = buildViewModel(view, app, prefs, {
     upcomingStart,
-    upcomingDays: layout === "board" ? 7 : 14,
+    upcomingDays: 7,
+    upcomingOpenEnded: layout !== "board",
   });
   const order = useMemo(() => visibleOrder(vm, collapsed, layout), [vm, collapsed, layout]);
   const overlayOpen =
@@ -146,7 +147,7 @@ function Main() {
       const after = app.task(id);
       setToast({ text: after && !after.done ? "Rescheduled to the next date" : "1 task completed", undo: true });
       setSelected((s) => (s === id && after?.done ? next : s));
-    }, 350);
+    }, 320);
   };
 
   const reschedule = (ids: string[], target: ScheduleTarget) => {
@@ -390,7 +391,11 @@ function Main() {
   });
 
   useEffect(() => {
-    if (selected) document.querySelector(`[data-id="${CSS.escape(selected)}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    const el = selected ? document.querySelector(`[data-id="${CSS.escape(selected)}"]`) : null;
+    const box = el?.closest(".view-body, .column-body")?.getBoundingClientRect();
+    const r = el?.getBoundingClientRect();
+    // Off-screen selections glide to the centre (Remit); visible ones stay put so clicks don't jump.
+    if (el && r && (!box || r.top < box.top || r.bottom > box.bottom)) el.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
   }, [selected]);
 
   const openIdx = openId ? order.indexOf(openId) : -1;
@@ -407,6 +412,11 @@ function Main() {
   ];
 
   const project = view.kind === "project" ? app.project(view.id) : undefined;
+  // Admit what the Display filters hide, so the sidebar count and the list never seem to disagree.
+  const filtering = prefs.deadline !== DEFAULT_PREFS.deadline || prefs.priority !== DEFAULT_PREFS.priority || prefs.label !== DEFAULT_PREFS.label;
+  const hiddenByFilters = filtering
+    ? Math.max(0, viewTasks(view, app, { ...DEFAULT_PREFS, showCompleted: prefs.showCompleted }).tasks.length - viewTasks(view, app, prefs).tasks.length)
+    : 0;
   const allowSections = view.kind === "project" && (prefs.groupBy === "default" || prefs.groupBy === "section");
 
   return (
@@ -439,54 +449,67 @@ function Main() {
             <ForwardIcon />
           </button>
           <div className="window-title" data-tauri-drag-region>
-            <b data-tauri-drag-region>
-              {vm.title}
-            </b>
-            <span data-tauri-drag-region>{`${vm.count} task${vm.count === 1 ? "" : "s"}`}
-              {vm.subtitle ? ` · ${vm.subtitle}` : ""}</span>
+            <b data-tauri-drag-region>{vm.title}</b>
+            <span data-tauri-drag-region>
+              {view.kind !== "browse" && `${vm.count} task${vm.count === 1 ? "" : "s"}`}
+              {hiddenByFilters > 0 ? ` · ${hiddenByFilters} hidden by filters` : ""}
+              {vm.subtitle ? ` · ${vm.subtitle}` : ""}
+            </span>
           </div>
           <span className="grow" data-tauri-drag-region />
+          {project && (
+            <button
+              className="tool-btn"
+              onClick={(e) => {
+                const a = anchorOf(e.currentTarget, "right");
+                taskMenu.open(a, [
+                  { label: "Edit project…", icon: "✎", onClick: () => setProjectDialog({ id: project.id }) },
+                  { label: "Add section", icon: "▤", onClick: () => {
+                    const name = `Section ${app.sections(project.id).length + 1}`;
+                    void app.addSection(project.id, name);
+                  } },
+                  { label: project.favorite ? "Remove from favorites" : "Add to favorites", icon: "★", onClick: () => void app.updateProject(project.id, { favorite: !project.favorite }) },
+                  { label: "Save as template…", icon: "⧉", onClick: () => setTemplateFor(project.id) },
+                ]);
+              }}
+              aria-label="Project menu"
+                title="Project actions"
+            >
+              ⋯
+            </button>
+          )}
           <button className="tool-btn" onClick={() => setPalette(true)} title="Search (⌘K)" aria-label="Search">
             <SearchIcon />
           </button>
           {view.kind !== "browse" && view.kind !== "completed" && view.kind !== "search" && (
             <button className="tool-pill" onClick={(e) => setDisplayAnchor(anchorOf(e.currentTarget, "right"))}>
               <DisplayIcon /> Display
+              {changedCount(prefs) > 0 && <span className="pill-count">{changedCount(prefs)}</span>}
             </button>
           )}
         </div>
 
         <LicenseBanner onOpen={() => setPaywall(true)} />
+        {app.lastError && (
+          <div className="banner error app-error">
+            <span className="warn">⚠</span>
+            <span className="grow">{app.lastError}</span>
+            <button className="icon-btn" onClick={() => app.dismissError()} aria-label="Dismiss" title="Dismiss">
+              <CloseIcon size={12} />
+            </button>
+          </div>
+        )}
 
-        {layout !== "calendar" && (project || (view.kind === "upcoming" && layout === "board")) && (
+        {layout !== "calendar" && view.kind === "upcoming" && layout === "board" && (
           <div className={`view-head ${layout === "board" ? "wide" : ""}`}>
             <div className="grow" />
-            {project && (
-              <button
-                className="icon-btn"
-                onClick={(e) => {
-                  const a = anchorOf(e.currentTarget, "right");
-                  taskMenu.open(a, [
-                    { label: "Edit project…", icon: "✎", onClick: () => setProjectDialog({ id: project.id }) },
-                    { label: "Add section", icon: "▤", onClick: () => {
-                      const name = `Section ${app.sections(project.id).length + 1}`;
-                      void app.addSection(project.id, name);
-                    } },
-                    { label: project.favorite ? "Remove from favorites" : "Add to favorites", icon: "★", onClick: () => void app.updateProject(project.id, { favorite: !project.favorite }) },
-                    { label: "Save as template…", icon: "⧉", onClick: () => setTemplateFor(project.id) },
-                  ]);
-                }}
-                aria-label="Project menu"
-              >
-                ⋯
-              </button>
-            )}
+
             {view.kind === "upcoming" && layout === "board" && (
-              <div className="segmented">
+              <div className="board-nav">
                 <button onClick={() => setUpcomingWeek((w) => Math.max(0, w - 1))} disabled={upcomingWeek === 0} aria-label="Previous week">
                   ‹
                 </button>
-                <button className={upcomingWeek === 0 ? "on" : ""} onClick={() => setUpcomingWeek(0)}>
+                <button className="today-btn" onClick={() => setUpcomingWeek(0)}>
                   Today
                 </button>
                 <button onClick={() => setUpcomingWeek((w) => w + 1)} aria-label="Next week">

@@ -1,7 +1,7 @@
 import { dueDay, dueLabel, toDateStr } from "../../core/dates";
 import type { Task } from "../../types";
 import { useApp } from "../hooks";
-import { CalendarSmallIcon } from "../icons";
+import { CalendarSmallIcon, ChevronIcon } from "../icons";
 import { dragProps } from "../ui";
 
 export interface TaskItemHandlers {
@@ -47,11 +47,14 @@ export function TaskItem(p: Props) {
   );
 
   const date = task.due && (
-    <span className={`due ${dueClass}`}>
-      {p.variant === "row" && <CalendarSmallIcon />}
-      {task.recurrence && <span className="recur">↻</span>}
-      {dueLabel(task.due)}
-    </span>
+    <>
+      {p.variant === "card" && task.recurrence && <span className="recur muted">↻</span>}
+      <span className={`due ${dueClass}`}>
+        {p.variant === "row" && <CalendarSmallIcon />}
+        {task.recurrence && p.variant === "row" && <span className="recur">↻</span>}
+        {dueLabel(task.due)}
+      </span>
+    </>
   );
   const chips = (
     <>
@@ -60,7 +63,7 @@ export function TaskItem(p: Props) {
           {l}
         </span>
       ))}
-      {task.person && <span className="tag">{task.person}👤</span>}
+      {task.person && <span className="tag person">{task.person}👤</span>}
       {subs.length > 0 && (
         <span>
           ⑂ {subs.filter((s) => s.done).length}/{subs.length}
@@ -139,7 +142,7 @@ export function TaskItem(p: Props) {
   }
 
   return (
-    <div className={`task ${state}`} style={{ paddingLeft: 4 + (p.depth ?? 0) * 28 }} {...common}>
+    <div className={`task ${state}`} style={{ paddingLeft: 12 + (p.depth ?? 0) * 28, "--indent": `${(p.depth ?? 0) * 28}px` } as React.CSSProperties} {...common}>
       {p.childCount ? (
         <button
           className={`collapse ${p.collapsed ? "closed" : ""}`}
@@ -149,11 +152,9 @@ export function TaskItem(p: Props) {
           }}
           aria-label={p.collapsed ? "Expand" : "Collapse"}
         >
-          ▾
+          <ChevronIcon />
         </button>
-      ) : (
-        <span className="collapse-spacer" />
-      )}
+      ) : null}
       {check}
       <div className="task-body">
         <div className={`task-title ${task.done ? "strike" : ""}`}>{task.title}</div>

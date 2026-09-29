@@ -3,6 +3,7 @@ import type { ScheduleTarget } from "../controller";
 import type { Group, TaskNode, ViewModel } from "../display";
 import { nest } from "../display";
 import { useApp } from "../hooks";
+import { PlusIcon } from "../icons";
 import { anchorOf, dropProps, useMenu } from "../ui";
 import { askConfirm } from "../confirm";
 import { QuickAdd } from "./QuickAdd";
@@ -58,12 +59,12 @@ export function ListView({ vm, ctx, allowSections }: { vm: ViewModel; ctx: ViewC
             setAdding={(on) => setAdding(on ? g.key : null)}
             hideHeader={single}
           />
-          {allowSections && projectId && (
-            newSection && newSection.after === (g.section?.name ?? null) && gi === vm.groups.indexOf(g) ? (
+          {allowSections && projectId && gi === vm.groups.length - 1 && (
+            newSection ? (
               <input
                 autoFocus
                 className="new-section-input"
-                placeholder="Name this section"
+                placeholder="Section name"
                 value={newSection.name}
                 onChange={(e) => setNewSection({ ...newSection, name: e.target.value })}
                 onKeyDown={(e) => {
@@ -83,13 +84,14 @@ export function ListView({ vm, ctx, allowSections }: { vm: ViewModel; ctx: ViewC
               />
             ) : (
               <button className="add-section" onClick={() => setNewSection({ after: g.section?.name ?? null, name: "" })}>
-                Add section
+                <span className="plus-box">+</span> Add section
               </button>
             )
           )}
         </div>
       ))}
-      {empty && !vm.error && vm.title !== "Upcoming" && vm.title !== "Completed" && <Empty title={vm.title} />}
+      {/* Views with an "Add task" row already say what to do; the empty state is for the rest. */}
+      {empty && !vm.error && !vm.groups.some((g) => g.patch !== null) && vm.title !== "Completed" && <Empty title={vm.title} />}
     </div>
   );
 }
@@ -121,7 +123,10 @@ function GroupBlock({
     if (group.overdue) {
       menu.open(
         anchorOf(el),
-        RESCHEDULE_TARGETS.map(([t, label]) => ({ label, onClick: () => ctx.reschedule(group.tasks.map((x) => x.id), t) })),
+        RESCHEDULE_TARGETS.flatMap(([t, label]) => [
+          ...(t === "none" ? [{ separator: true as const }] : []),
+          { label, onClick: () => ctx.reschedule(group.tasks.map((x) => x.id), t) },
+        ]),
       );
       return;
     }
@@ -137,7 +142,7 @@ function GroupBlock({
         icon: "🗑",
         danger: true,
         onClick: () =>
-          void askConfirm(`Delete section “${name}”? Its tasks stay in the project.`, "Delete").then(
+          void askConfirm(`Delete section “${name}”?`, "Delete Section", { detail: "Its tasks stay in the project, without a section." }).then(
             (ok) => void (ok && app.deleteSection(sec.projectId, name)),
           ),
       },
@@ -146,6 +151,7 @@ function GroupBlock({
 
   return (
     <section className="group">
+      {group.gap && <div className="gap-label">{group.gap}</div>}
       {!hideHeader && (
         <div className={`group-head ${group.tone ?? ""}`} {...drop}>
           {renaming !== null ? (
@@ -166,9 +172,12 @@ function GroupBlock({
           ) : (
             <span onDoubleClick={() => sec?.name && setRenaming(sec.name)}>{group.title}</span>
           )}
-          <span className="count">{group.tasks.length || ""}</span>
           {group.overdue && group.tasks.length > 0 && (
-            <button className="link small" style={{ marginLeft: "auto" }} onClick={(e) => headerMenu(e.currentTarget)}>
+            <button
+              className="reschedule-btn"
+              title={`Move all ${group.tasks.length} overdue tasks to a new date`}
+              onClick={(e) => headerMenu(e.currentTarget)}
+            >
               Reschedule
             </button>
           )}
@@ -192,7 +201,10 @@ function GroupBlock({
           <QuickAdd variant="inline" defaults={{ ...vm.addDefaults, ...group.patch }} onDone={() => setAdding(false)} />
         ) : (
           <button className="add-inline" onClick={() => setAdding(true)}>
-            <span className="plus">+</span> Add task
+            <span className="plus">
+              <PlusIcon size={13} />
+            </span>
+            Add task
           </button>
         ))}
       {menu.element}

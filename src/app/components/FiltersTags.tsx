@@ -1,9 +1,31 @@
 import { useState } from "react";
-import { parseFilter } from "../../core/filters";
+import { applyFilter, parseFilter } from "../../core/filters";
 import { askConfirm } from "../confirm";
 import type { SavedFilter } from "../controller";
 import { countFor, type View } from "../display";
 import { useApp } from "../hooks";
+import { FilterIcon, PencilIcon, TrashIcon } from "../icons";
+
+/** "p1 & (today | overdue)" → "Priority 1 · Today or Overdue", as Remit shows under each filter. */
+export function describeQuery(q: string): string {
+  const term = (t: string): string => {
+    const x = t.trim().replace(/^\(+|\)+$/g, "").trim();
+    const m = x.match(/^p([1-4])$/i);
+    if (m) return `Priority ${m[1]}`;
+    if (x.startsWith("@")) return `#${x.slice(1).replace(/_/g, " ")}`;
+    if (x.startsWith("#")) return `in ${x.slice(1).replace(/_/g, " ")}`;
+    if (x.startsWith("+")) return `with ${x.slice(1).replace(/_/g, " ")}`;
+    if (x.startsWith("!")) return `not ${term(x.slice(1))}`;
+    if (/^\d+ days$/.test(x)) return `Next ${x}`;
+    return x ? x[0]!.toUpperCase() + x.slice(1) : x;
+  };
+  const text = q
+    .split("&")
+    .map((part) => part.split("|").map(term).filter(Boolean).join(" or "))
+    .filter(Boolean)
+    .join(" · ");
+  return text || "Everything";
+}
 
 export function FiltersTags({ onNavigate }: { onNavigate: (v: View) => void }) {
   const app = useApp();
@@ -46,12 +68,25 @@ export function FiltersTags({ onNavigate }: { onNavigate: (v: View) => void }) {
         Filters <span className="count">{filters.length}</span>
       </h3>
       <div className="panel-list">
+        {!filters.length && (
+          <div className="empty-box">
+            <FilterIcon />
+            <div>
+              <b>No saved filters</b>
+              <p>A filter is a saved view across every project, like “Priority 1 due this week”. Set one up in the Display menu or here.</p>
+            </div>
+          </div>
+        )}
         {filters.map((f) => (
           <div key={f.id} className="clickable" onClick={() => onNavigate({ kind: "filter", id: f.id })}>
-            <span style={{ color: "var(--accent)" }}>☰</span>
+            <span className="row-icon">
+              <FilterIcon />
+            </span>
             <div className="grow">
               <div>{f.name}</div>
-              <div className="sub">{f.query}</div>
+              <div className="sub" title={f.query}>
+                {describeQuery(f.query)}
+              </div>
             </div>
             <span className="actions">
               <button
@@ -62,22 +97,22 @@ export function FiltersTags({ onNavigate }: { onNavigate: (v: View) => void }) {
                 }}
                 aria-label="Edit filter"
               >
-                ✎
+                <PencilIcon />
               </button>
               <button
                 className="icon-btn"
                 onClick={(e) => {
                   e.stopPropagation();
-                  void askConfirm(`Delete filter “${f.name}”?`, "Delete").then(
+                  void askConfirm(`Delete the filter “${f.name}”?`, "Delete Filter", { detail: "Only the saved filter goes. No tasks change." }).then(
                     (ok) => ok && app.saveFilters(filters.filter((x) => x.id !== f.id)),
                   );
                 }}
                 aria-label="Delete filter"
               >
-                🗑
+                <TrashIcon size={13} />
               </button>
             </span>
-            <span className="count">{countFor({ kind: "filter", id: f.id }, app) || ""}</span>
+            <span className="count">{countFor({ kind: "filter", id: f.id }, app)}</span>
           </div>
         ))}
         <button className="muted" onClick={() => setEditing({ id: `f-${Date.now()}`, name: "", query: "" })}>
@@ -103,24 +138,32 @@ export function FiltersTags({ onNavigate }: { onNavigate: (v: View) => void }) {
                 aria-label="Rename tag"
                 title="Rename everywhere"
               >
-                ✎
+                <PencilIcon />
               </button>
               <button
                 className="icon-btn"
                 onClick={(e) => {
                   e.stopPropagation();
-                  void askConfirm(`Remove the tag “${l}” from every task?`, "Remove").then((ok) => ok && app.removeLabel(l));
+                  void askConfirm(`Remove #${l} from every task?`, "Remove Tag", { detail: `The tag comes off ${app.tasks().filter((t) => t.labels.includes(l)).length} task(s) in TaskDB and Notion. The tasks themselves are kept.` }).then((ok) => ok && app.removeLabel(l));
                 }}
                 aria-label="Remove tag"
                 title="Remove from every task"
               >
-                🗑
+                <TrashIcon size={13} />
               </button>
             </span>
-            <span className="count">{labelCount(l) || ""}</span>
+            <span className="count">{labelCount(l)}</span>
           </div>
         ))}
-        {!labels.length && <div className="muted small">Add tags with @name in quick add, or in a task's details.</div>}
+        {!labels.length && (
+          <div className="empty-box">
+            <span className="hash">#</span>
+            <div>
+              <b>No tags yet</b>
+              <p>Add one with @name in quick add, or from a task's details. Tags cut across projects.</p>
+            </div>
+          </div>
+        )}
       </div>
 
       <h3>
@@ -140,20 +183,20 @@ export function FiltersTags({ onNavigate }: { onNavigate: (v: View) => void }) {
                 }}
                 aria-label="Rename person"
               >
-                ✎
+                <PencilIcon />
               </button>
               <button
                 className="icon-btn"
                 onClick={(e) => {
                   e.stopPropagation();
-                  void askConfirm(`Remove ${p} from every task?`, "Remove").then((ok) => ok && app.removePerson(p));
+                  void askConfirm(`Remove ${p} from every task?`, "Remove Person", { detail: "The tasks themselves are kept." }).then((ok) => ok && app.removePerson(p));
                 }}
                 aria-label="Remove person"
               >
-                🗑
+                <TrashIcon size={13} />
               </button>
             </span>
-            <span className="count">{personCount(p) || ""}</span>
+            <span className="count">{personCount(p)}</span>
           </div>
         ))}
         <div>
@@ -198,7 +241,7 @@ export function FiltersTags({ onNavigate }: { onNavigate: (v: View) => void }) {
               {t.name} <span className="sub">template · {t.sections.join(", ") || "no sections"}</span>
             </span>
             <button className="icon-btn" onClick={() => app.deleteTemplate(t.id)} aria-label="Delete template">
-              🗑
+              <TrashIcon size={13} />
             </button>
           </div>
         ))}
@@ -242,11 +285,17 @@ function FilterEditor({ filter, onSave, onClose }: { filter: SavedFilter; onSave
     .join(" & ");
   const query = advanced ?? built;
   let error: string | null = null;
+  let matches = 0;
   try {
-    if (query.trim()) parseFilter(query);
+    if (query.trim()) {
+      parseFilter(query);
+      // Same predicate as the sidebar count, so the number here is the number you'll see.
+      matches = applyFilter(query, app.tasks(), { now: new Date(), projectName: app.projectName }).filter((t) => !t.done).length;
+    }
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }
+  const existing = app.filters().some((f) => f.id === filter.id);
 
   const select = (value: string, set: (v: string) => void, options: [string, string][]) => (
     <select
@@ -268,7 +317,7 @@ function FilterEditor({ filter, onSave, onClose }: { filter: SavedFilter; onSave
   return (
     <div className="overlay" onMouseDown={onClose}>
       <div className="modal filter-editor" onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-        <h2>{filter.name ? "Edit filter" : "New filter"}</h2>
+        <h2>{existing ? "Edit Filter" : "New Filter"}</h2>
         <div className="field">
           Name
           <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Waiting on others" />
@@ -306,7 +355,23 @@ function FilterEditor({ filter, onSave, onClose }: { filter: SavedFilter; onSave
           Query terms: today, tomorrow, overdue, no date, 7 days, recurring, p1–p4, #project, @tag, +person, "text". Combine with &amp; | ! ( ).
         </p>
         {error && <p className="small error-text">{error}</p>}
-        <div className="row">
+        {!error && query.trim() && (
+          <p className={`match-count ${matches ? "" : "none"}`}>
+            <FilterIcon size={12} /> {matches === 1 ? "1 task matches now" : `${matches} tasks match now`}
+          </p>
+        )}
+        <div className="row dialog-foot">
+          {existing && (
+            <button
+              className="danger-link"
+              onClick={() => {
+                app.saveFilters(app.filters().filter((f) => f.id !== filter.id));
+                onClose();
+              }}
+            >
+              Delete
+            </button>
+          )}
           <span className="grow" />
           <button className="ghost" onClick={onClose}>
             Cancel
@@ -316,7 +381,7 @@ function FilterEditor({ filter, onSave, onClose }: { filter: SavedFilter; onSave
             disabled={!name.trim() || !query.trim() || !!error}
             onClick={() => onSave({ ...filter, name: name.trim(), query: query.trim() })}
           >
-            Save
+            {existing ? "Save" : "Create"}
           </button>
         </div>
       </div>

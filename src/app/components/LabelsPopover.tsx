@@ -17,6 +17,7 @@ export function LabelsPopover({ taskId, anchor, onClose }: { taskId: string; anc
 
   return (
     <Popover anchor={anchor} onClose={onClose}>
+      <div className="popover-title">Tags for {task.title}</div>
       <input
         autoFocus
         placeholder="Type a tag"
@@ -39,12 +40,15 @@ export function LabelsPopover({ taskId, anchor, onClose }: { taskId: string; anc
         }}
         style={{ width: "100%", marginBottom: 4 }}
       />
+      {!all.length && !q.trim() && <div className="muted small" style={{ padding: "4px 8px" }}>No tags yet. Type below to add one.</div>}
+      <div className="labels-list">
       {shown.map((l, i) => (
         <button key={l} className={`menu-item ${i === hot ? "hot" : ""}`} onClick={() => toggle(l)}>
           <span style={{ width: 16 }}>{task.labels.includes(l) ? "✓" : ""}</span>
-          <span className="hash">#</span> {l}
+          <span className="hash tag-hash">#</span> {l}
         </button>
       ))}
+      </div>
       {canCreate && (
         <button
           className="menu-item"
@@ -53,7 +57,7 @@ export function LabelsPopover({ taskId, anchor, onClose }: { taskId: string; anc
             setQ("");
           }}
         >
-          + Create “{q.trim()}”
+          Add #{q.trim().replace(/^[@#]/, "")}
         </button>
       )}
     </Popover>

@@ -89,6 +89,11 @@ export class AppController {
   lastSyncAt: number | null = null;
   lastError: string | null = null;
 
+  dismissError(): void {
+    this.lastError = null;
+    this.emit();
+  }
+
   private store!: Store & { clear?(): Promise<void> };
   private client: NotionClient | null = null;
   private engine: SyncEngine | null = null;

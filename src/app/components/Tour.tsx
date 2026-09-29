@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toDateStr } from "../../core/dates";
 import { useApp } from "../hooks";
+import { BoardLayoutIcon, CalendarSmallIcon, CheckCircleIcon, FolderIcon, HashIcon, KeyboardIcon, PlusIcon } from "../icons";
+import { ACTIONS, type ActionId, bindingsFor, displayCombo } from "../shortcuts";
 
 interface TourTask {
   section: string;
@@ -27,6 +29,9 @@ const TOUR_TASKS: TourTask[] = [
   { section: TOUR_SECTIONS[2]!, title: "Done? Right-click this project in the sidebar and delete it", notes: "That removes it and its tasks from Notion too." },
 ];
 
+const STEP_ICONS = [<CheckCircleIcon size={28} />, <BoardLayoutIcon size={28} />, <PlusIcon size={28} />, <KeyboardIcon size={28} />, <FolderIcon size={28} />];
+const KEY_ROWS: ActionId[] = ["quickAdd", "completeTask", "nextTask", "previousTask", "openDetail", "scheduleToday", "scheduleTomorrow", "priority1", "editLabels", "commandPalette"];
+
 const STEPS = [
   {
     title: "Welcome to TaskDB",
@@ -41,8 +46,8 @@ const STEPS = [
     body: "Press Q and type “Call Priya tomorrow 5pm p1 #Work @waiting”. TaskDB sets the date, time, priority, project and tag at once. #, @ and + autocomplete as you type.",
   },
   {
-    title: "Built for the keyboard",
-    body: "J/K to move, E to complete, T/U/W/N to schedule, 1–4 for priority, I to open details, ⌘K to jump anywhere, ⌘Z to undo. Every key can be changed in Settings.",
+    title: "A few keys to start with",
+    body: "Every one of these can be changed in Settings. Press ? any time for the full list.",
   },
   {
     title: "Learn by doing",
@@ -56,6 +61,18 @@ export function Tour({ onClose, onOpenProject }: { onClose: () => void; onOpenPr
   const [busy, setBusy] = useState(false);
   const last = step === STEPS.length - 1;
   const s = STEPS[step]!;
+  const overrides = app.settings().shortcuts;
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Enter" && !last) {
+        e.preventDefault();
+        setStep((n) => Math.min(STEPS.length - 1, n + 1));
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [last]);
 
   const finish = () => {
     app.updateSettings({ tourDone: true });
@@ -94,28 +111,35 @@ export function Tour({ onClose, onOpenProject }: { onClose: () => void; onOpenPr
       <div className="modal tour">
         <div className="dots">
           {STEPS.map((_, i) => (
-            <span key={i} className={i === step ? "on" : ""} />
+            <span key={i} className={i === step ? "on" : i < step ? "done" : ""} />
           ))}
         </div>
-        <span className="logo" style={{ width: 34, height: 34, fontSize: 20 }}>
-          ✓
-        </span>
+        <span className="step-icon">{STEP_ICONS[step]}</span>
         <h2>{s.title}</h2>
         <p>{s.body}</p>
         {step === 0 && (
           <div className="sample">
+            <div className="sample-head">Today</div>
             {[
-              ["Send Sam the launch plan", "Today", "Sam👤 · waiting", "p1"],
-              ["Review Priya's design notes", "Tomorrow", "Priya👤 · discuss", "p2"],
-              ["Pay the internet bill", "Friday", "↻ monthly", "p4"],
-            ].map(([t, d, m, p]) => (
-              <div key={t} className="task" style={{ borderBottom: "1px solid var(--line)" }}>
+              ["Send Sam the launch plan", "Today", ["waiting"], "p1", "🤝 Acme"],
+              ["Review Priya's design notes", "Tomorrow", ["discuss"], "p2", "🌟 Orbit"],
+              ["Pay the internet bill", "Friday", [], "p4", "🏠 Home"],
+            ].map(([t, d, tags, p, proj]) => (
+              <div key={t as string} className="sample-row">
                 <span className={`check ${p}`} />
                 <div className="task-body">
                   <div className="task-title">{t}</div>
                   <div className="task-meta">
-                    <span className={d === "Today" ? "due today" : "due"}>{d}</span>
-                    <span className="tag">{m}</span>
+                    <span className={d === "Today" ? "due today" : "due"}>
+                      <CalendarSmallIcon /> {d}
+                    </span>
+                    {(tags as string[]).map((x) => (
+                      <span key={x} className="tag">
+                        {x}
+                      </span>
+                    ))}
+                    <span className="grow" />
+                    <span className="task-project">{proj}</span>
                   </div>
                 </div>
               </div>
@@ -125,26 +149,50 @@ export function Tour({ onClose, onOpenProject }: { onClose: () => void; onOpenPr
         {step === 0 && (
           <ul className="points">
             <li>
-              <span className="ico">#</span>Projects, sections, tags and people are real Notion properties — edit them in Notion too.
+              <span className="ico">
+                <HashIcon />
+              </span>
+              Projects, sections, tags and people are real Notion properties — edit them in Notion too.
             </li>
             <li>
-              <span className="ico">▥</span>List, Board and Calendar layouts, remembered for each view.
+              <span className="ico">
+                <BoardLayoutIcon />
+              </span>
+              List, Board and Calendar layouts, remembered for each view.
             </li>
             <li>
-              <span className="ico">⌨</span>Keyboard-first: completing, scheduling and tagging each take one key.
+              <span className="ico">
+                <KeyboardIcon />
+              </span>
+              Keyboard-first: completing, scheduling and tagging each take one key.
             </li>
           </ul>
         )}
+        {step === 3 && (
+          <div className="key-card">
+            {KEY_ROWS.map((id) => (
+              <div key={id} className="key-row">
+                <span className="grow">{ACTIONS.find((a) => a.id === id)!.title}</span>
+                {bindingsFor(id, overrides).map((c, i) => (
+                  <span key={c} className="keys">
+                    {i > 0 && <span className="or">or</span>}
+                    <span className="keycap emph">{displayCombo(c)}</span>
+                  </span>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
         <div className="tour-actions">
-          <button className="link" onClick={finish}>
-            {last ? "Not now" : "Skip tour"}
-          </button>
-          <span className="grow" />
           {step > 0 && (
             <button className="ghost" onClick={() => setStep(step - 1)}>
               Back
             </button>
           )}
+          <span className="grow" />
+          <button className="skip" onClick={finish}>
+            {last ? "Not now" : "Skip Tour"}
+          </button>
           {last ? (
             <button className="primary" disabled={busy} onClick={() => void addPractice()}>
               {busy ? "Adding…" : "Add practice project"}

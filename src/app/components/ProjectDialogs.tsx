@@ -132,6 +132,24 @@ export function ProjectDialog({
         </div>
         {picker && (
           <Popover anchor={picker} onClose={() => setPicker(null)}>
+            {/* Any emoji is allowed, not just the palette below (Remit). */}
+            <input
+              autoFocus
+              className="emoji-input"
+              placeholder="Paste or pick an emoji"
+              onChange={(e) => {
+                const first = firstGrapheme(e.target.value.trim());
+                if (first) {
+                  setEmoji(first);
+                  setPicker(null);
+                }
+              }}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === "Escape") setPicker(null);
+              }}
+            />
+            <p className="caption">Only the first character is kept. ⌃⌘Space opens every emoji.</p>
             <div className="emoji-grid">
               {PROJECT_EMOJI.map((e) => (
                 <button
@@ -161,6 +179,13 @@ export function ProjectDialog({
   );
 }
 
+function firstGrapheme(s: string): string | null {
+  if (!s) return null;
+  const Seg = (Intl as unknown as { Segmenter?: new (l?: string, o?: object) => { segment: (s: string) => Iterable<{ segment: string }> } }).Segmenter;
+  if (Seg) for (const { segment } of new Seg(undefined, { granularity: "grapheme" }).segment(s)) return segment;
+  return Array.from(s)[0] ?? null;
+}
+
 export function SaveTemplateDialog({ projectId, onClose, onSaved }: { projectId: string; onClose: () => void; onSaved: () => void }) {
   const app = useApp();
   const project = app.project(projectId);
@@ -169,14 +194,38 @@ export function SaveTemplateDialog({ projectId, onClose, onSaved }: { projectId:
   return (
     <div className="overlay" onMouseDown={onClose}>
       <div className="modal project-dialog" onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-        <h2>Save as template</h2>
-        <p className="small muted">
-          Saves this project's structure — {sections.length ? sections.join(", ") : "no sections yet"}. Tasks are not copied.
-        </p>
+        <h2 className="dialog-title">Save {project?.name ?? "project"} as Template</h2>
         <div className="field">
           <label>Template name</label>
-          <input autoFocus value={name} onChange={(e) => setName(e.target.value)} style={{ width: "100%" }} />
+          <input
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && name.trim()) {
+                app.saveTemplate(projectId, name);
+                onSaved();
+              }
+              if (e.key === "Escape") onClose();
+            }}
+            style={{ width: "100%" }}
+          />
         </div>
+        {sections.length ? (
+          <>
+            <p className="small muted" style={{ margin: "12px 0 4px" }}>
+              Sections captured
+            </p>
+            <ul className="bullet-list">
+              {sections.map((n) => (
+                <li key={n}>{n}</li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <p className="small muted">This project has no sections yet, so the template will be empty.</p>
+        )}
+        <p className="small muted">Tasks are never saved into a template — only structure.</p>
         <div className="row">
           <span className="grow" />
           <button className="ghost" onClick={onClose}>
@@ -190,7 +239,7 @@ export function SaveTemplateDialog({ projectId, onClose, onSaved }: { projectId:
               onSaved();
             }}
           >
-            Save template
+            Save
           </button>
         </div>
       </div>

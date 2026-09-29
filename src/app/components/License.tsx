@@ -139,7 +139,7 @@ export function LicenseSettings({ onBuy }: { onBuy: () => void }) {
             className="danger"
             disabled={busy}
             onClick={() =>
-              void askConfirm("Remove the license from this Mac? You can activate it on another Mac.", "Deactivate").then(
+              void askConfirm("Remove the license from this Mac?", "Deactivate", { detail: "You can activate it on another Mac.", danger: true }).then(
                 (ok) => void (ok && run(() => app.deactivateLicense())),
               )
             }

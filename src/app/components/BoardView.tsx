@@ -2,6 +2,7 @@ import { useState } from "react";
 import { askConfirm } from "../confirm";
 import type { Group, ViewModel } from "../display";
 import { useApp } from "../hooks";
+import { PlusIcon } from "../icons";
 import { anchorOf, dropProps, useMenu } from "../ui";
 import { type ViewCtx, orderBefore, RESCHEDULE_TARGETS } from "./ListView";
 import { QuickAdd } from "./QuickAdd";
@@ -28,7 +29,7 @@ export function BoardView({ vm, ctx, allowSections }: { vm: ViewModel; ctx: View
           ) : (
             <input
               autoFocus
-              placeholder="Name this section"
+              placeholder="Section name"
               value={newSection}
               onChange={(e) => setNewSection(e.target.value)}
               onKeyDown={(e) => {
@@ -72,7 +73,10 @@ function Column({
     if (group.overdue) {
       menu.open(
         anchorOf(el),
-        RESCHEDULE_TARGETS.map(([t, label]) => ({ label, onClick: () => ctx.reschedule(group.tasks.map((x) => x.id), t) })),
+        RESCHEDULE_TARGETS.flatMap(([t, label]) => [
+          ...(t === "none" ? [{ separator: true as const }] : []),
+          { label, onClick: () => ctx.reschedule(group.tasks.map((x) => x.id), t) },
+        ]),
       );
       return;
     }
@@ -88,7 +92,7 @@ function Column({
         icon: "🗑",
         danger: true,
         onClick: () =>
-          void askConfirm(`Delete section “${name}”? Its tasks stay in the project.`, "Delete").then(
+          void askConfirm(`Delete section “${name}”?`, "Delete Section", { detail: "Its tasks stay in the project, without a section." }).then(
             (ok) => void (ok && app.deleteSection(sec.projectId, name)),
           ),
       },
@@ -118,7 +122,7 @@ function Column({
         )}
         <span className="count">{group.tasks.length}</span>
         {group.overdue && group.tasks.length > 0 && (
-          <button className="menu-btn" onClick={(e) => openMenu(e.currentTarget)}>
+          <button className="menu-btn" title={`Move all ${group.tasks.length} overdue tasks to a new date`} onClick={(e) => openMenu(e.currentTarget)}>
             Reschedule
           </button>
         )}
@@ -150,7 +154,10 @@ function Column({
             <QuickAdd variant="inline" defaults={{ ...vm.addDefaults, ...group.patch }} onDone={() => setAdding(false)} />
           ) : (
             <button className="add-inline" onClick={() => setAdding(true)}>
-              <span className="plus">+</span> Add task
+              <span className="plus">
+                <PlusIcon size={12} />
+              </span>
+              Add task
             </button>
           ))}
       </div>

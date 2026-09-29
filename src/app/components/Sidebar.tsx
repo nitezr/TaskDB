@@ -197,7 +197,11 @@ export function Sidebar(p: Props) {
         icon: "🗑",
         danger: true,
         onClick: () =>
-          void askConfirm(`Delete “${proj.name}” and its ${projectCount(proj.id)} open task(s)? This also removes them from Notion.`, "Delete").then(
+          void askConfirm(`Delete “${proj.name}”?`, "Delete Project and Tasks", {
+            detail: projectCount(proj.id)
+              ? `This deletes the project and its ${projectCount(proj.id)} open task(s) from Notion too. Sub-projects move up a level.`
+              : "This deletes the project from Notion too. Sub-projects move up a level.",
+          }).then(
             (ok) => {
               if (!ok) return;
               if (p.view.kind === "project" && p.view.id === proj.id) p.onNavigate({ kind: "inbox" });

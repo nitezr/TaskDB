@@ -5,6 +5,7 @@ import { parseRule } from "../../core/recurrence";
 import type { Priority } from "../../types";
 import { askConfirm } from "../confirm";
 import { useApp } from "../hooks";
+import { ChevronDownIcon, ChevronUpIcon, CloseIcon, HashIcon, TrashIcon } from "../icons";
 import { QuickAdd } from "./QuickAdd";
 
 const REPEATS: [string, string][] = [
@@ -101,7 +102,14 @@ export function DetailPeek({ id, onClose, onOpen, prevId, nextId, onComplete }: 
   };
 
   return (
-    <div className="overlay" onMouseDown={onClose}>
+    <div
+      className="overlay"
+      onMouseDown={() => {
+        // Blurring first runs the title/notes onBlur saves, so a click outside never loses an edit.
+        (document.activeElement as HTMLElement | null)?.blur();
+        onClose();
+      }}
+    >
       <div className="modal peek" onMouseDown={(e) => e.stopPropagation()}>
         <div className="peek-bar">
           {parent ? (
@@ -109,24 +117,26 @@ export function DetailPeek({ id, onClose, onOpen, prevId, nextId, onComplete }: 
               ↑ {parent.title}
             </button>
           ) : (
-            <span>
-              # {project ? `${project.emoji ?? ""} ${project.name}` : "Inbox"}
+            <span className="crumb">
+              <HashIcon size={11} /> {project ? `${project.emoji ?? ""} ${project.name}` : "Inbox"}
               {task.section ? ` / ${task.section}` : ""}
             </span>
           )}
           <span className="grow" />
           <button className="icon-btn" disabled={!prevId} onClick={() => prevId && onOpen(prevId)} aria-label="Previous task" title="Previous (↑)">
-            ⌃
+            <ChevronUpIcon />
           </button>
           <button className="icon-btn" disabled={!nextId} onClick={() => nextId && onOpen(nextId)} aria-label="Next task" title="Next (↓)">
-            ⌄
+            <ChevronDownIcon />
           </button>
           <button
             className="icon-btn"
             style={{ color: "var(--p1)" }}
             aria-label="Delete task"
             onClick={() =>
-              void askConfirm(`Delete “${task.title}”${subs.length ? ` and ${subs.length} sub-task(s)` : ""}?`, "Delete").then((ok) => {
+              void askConfirm("Delete this task?", "Delete Task", {
+                detail: `“${task.title}”${subs.length ? ` and its ${subs.length} sub-task(s)` : ""} will also be removed from Notion. ⌘Z undoes it.`,
+              }).then((ok) => {
                 if (!ok) return;
                 const next = nextId ?? prevId;
                 app.deleteTask(id);
@@ -134,10 +144,10 @@ export function DetailPeek({ id, onClose, onOpen, prevId, nextId, onComplete }: 
               })
             }
           >
-            🗑
+            <TrashIcon />
           </button>
           <button className="icon-btn" onClick={onClose} aria-label="Close">
-            ✕
+            <CloseIcon />
           </button>
         </div>
 
@@ -340,12 +350,15 @@ export function DetailPeek({ id, onClose, onOpen, prevId, nextId, onComplete }: 
                       className={on ? "on" : ""}
                       onClick={() => update({ labels: on ? task.labels.filter((x) => x !== l) : [...task.labels, l] })}
                     >
-                      # {l}
+                      <span className="hash">#</span>
+                      {l}
                     </button>
                   );
                 })}
-                {tagQuery.trim() && !allTags.includes(tagQuery.trim()) && (
-                  <button onClick={() => addTag(tagQuery)}>+ Create “{tagQuery.trim()}”</button>
+                {tagQuery.trim() && !allTags.some((t) => t.toLowerCase() === tagQuery.trim().replace(/^[@#]/, "").toLowerCase()) && (
+                  <button className="add-tag" onClick={() => addTag(tagQuery)}>
+                    Add #{tagQuery.trim().replace(/^[@#]/, "")}
+                  </button>
                 )}
               </div>
             </div>

@@ -59,10 +59,13 @@ export function formatDue(d: Date, timed: boolean): string {
   return timed ? toLocalIso(d) : toDateStr(d);
 }
 
-const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const FULL_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/** Short human label: "Today", "Tomorrow", "Fri", "3 Oct", plus time if set. */
+/**
+ * Short human label: "Today", "Tomorrow", "Friday", "3 Oct", plus a time if set.
+ * Midnight counts as no time (Remit): "12:00 AM" on a date-only task is noise.
+ */
 export function dueLabel(due: string, now: Date = new Date()): string {
   const d = parseDue(due);
   const today = startOfDay(now);
@@ -71,19 +74,18 @@ export function dueLabel(due: string, now: Date = new Date()): string {
   if (diff === 0) label = "Today";
   else if (diff === 1) label = "Tomorrow";
   else if (diff === -1) label = "Yesterday";
-  else if (diff > 1 && diff < 7) label = DAY_NAMES[d.getDay()]!;
+  else if (diff > 1 && diff < 7) label = FULL_DAYS[d.getDay()]!;
   else label = `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}${d.getFullYear() !== now.getFullYear() ? ` ${d.getFullYear()}` : ""}`;
-  if (hasTime(due)) {
+  if (hasTime(due) && (d.getHours() || d.getMinutes())) {
     const h = d.getHours();
-    const m = d.getMinutes();
-    label += ` ${h % 12 || 12}${m ? `:${pad(m)}` : ""}${h < 12 ? "am" : "pm"}`;
+    label += ` ${h % 12 || 12}:${pad(d.getMinutes())} ${h < 12 ? "AM" : "PM"}`;
   }
   return label;
 }
 
 export function dayHeading(day: string, now: Date = new Date()): string {
   const d = parseDue(day);
-  const base = `${d.getDate()} ${MONTH_NAMES[d.getMonth()]} · ${DAY_NAMES[d.getDay()]}`;
   const rel = dueLabel(day, now);
-  return rel === "Today" || rel === "Tomorrow" ? `${base} · ${rel}` : base;
+  // "29 Sep · Today", "1 Oct · Thursday": the relative word replaces the weekday.
+  return `${d.getDate()} ${MONTH_NAMES[d.getMonth()]} · ${rel === "Today" || rel === "Tomorrow" ? rel : FULL_DAYS[d.getDay()]}`;
 }
