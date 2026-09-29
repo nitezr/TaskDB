@@ -186,6 +186,33 @@ describe("AppController", () => {
     expect(Object.keys(notion.schemas.get("projects") ?? {})).toEqual(expect.arrayContaining(["Favorite", "Sections", "Parent project"]));
   });
 
+  it("reorders and nests projects by drag, and refuses to nest a project in itself", async () => {
+    const { app, notion } = setup();
+    await ready(app);
+    /** Requests wait on the rate limiter's timers, which are fake here. */
+    const run = async <T,>(p: Promise<T>) => {
+      await settle();
+      return p;
+    };
+    const a = await run(app.addProject({ name: "A" }));
+    const b = await run(app.addProject({ name: "B" }));
+    const c = await run(app.addProject({ name: "C" }));
+    const names = () => app.projectTree().map(({ project, depth }) => `${"-".repeat(depth)}${project.name}`);
+
+    await run(app.moveProject(c.id, null, a.id));
+    expect(names()).toEqual(["C", "A", "B"]);
+
+    await run(app.moveProject(b.id, a.id));
+    expect(names()).toEqual(["C", "A", "-B"]);
+    expect(notion.pages.get(b.id)!.properties["Parent project"].relation).toEqual([{ id: a.id }]);
+
+    await run(app.moveProject(a.id, b.id)); // B is inside A
+    expect(names()).toEqual(["C", "A", "-B"]);
+
+    await run(app.moveProject(b.id, null, null));
+    expect(names()).toEqual(["C", "A", "B"]);
+  });
+
   it("starts the trial on first launch and keeps it across restarts", async () => {
     const first = setup();
     await first.app.boot();

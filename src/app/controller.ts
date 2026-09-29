@@ -46,6 +46,8 @@ export interface Settings {
   theme: "system" | "light" | "dark";
   accent: string;
   font: "avenir" | "system";
+  /** Set once the user picks a font, so a changed default still reaches everyone else. */
+  fontPicked?: boolean;
   /** Calendar hour grids hide these hours (Remit's sleeping-hours toggle). */
   hideSleep: boolean;
   sleepStart: number;
@@ -62,7 +64,7 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   theme: "system",
   accent: "#dc4c3e",
-  font: "avenir",
+  font: "system",
   hideSleep: true,
   sleepStart: 22,
   sleepEnd: 8,
@@ -244,7 +246,9 @@ export class AppController {
   settings(): Settings {
     // The UI renders before boot() has opened the store (SQLite takes a moment on disk).
     if (!this.store) return DEFAULT_SETTINGS;
-    return { ...DEFAULT_SETTINGS, ...JSON.parse(this.store.getMeta("settings") ?? "{}") };
+    const saved = JSON.parse(this.store.getMeta("settings") ?? "{}");
+    if (!saved.fontPicked) delete saved.font;
+    return { ...DEFAULT_SETTINGS, ...saved };
   }
 
   syncStatus() {
@@ -437,7 +441,9 @@ export class AppController {
 
   /** Top-level projects first, each followed by its children, in sidebar order. */
   projectTree(includeArchived = false): { project: Project; depth: number }[] {
-    const live = this.projects.filter((p) => includeArchived || !p.archived);
+    const live = this.projects
+      .filter((p) => includeArchived || !p.archived)
+      .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
     const ids = new Set(live.map((p) => p.id));
     const out: { project: Project; depth: number }[] = [];
     const walk = (parentId: string | null, depth: number) => {
@@ -473,6 +479,34 @@ export class AppController {
       void this.refreshProjects();
       throw e;
     }
+  }
+
+  /** True when `id` is `ancestorId` or sits somewhere beneath it. */
+  isWithinProject(id: string | null, ancestorId: string): boolean {
+    for (let p = id ? this.project(id) : undefined, n = 0; p && n < 50; p = p.parentId ? this.project(p.parentId) : undefined, n++) {
+      if (p.id === ancestorId) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Sidebar drag: puts a project under `parentId` (null = top level), just before `beforeId`
+   * or last. Costs one Notion request; the new order sits between its neighbours.
+   */
+  async moveProject(id: string, parentId: string | null, beforeId: string | null = null): Promise<void> {
+    if (this.isWithinProject(parentId, id)) return; // can't nest a project inside itself
+    const siblings = this.projects
+      .filter((p) => !p.archived && p.id !== id && (p.parentId ?? null) === parentId)
+      .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
+    const at = beforeId ? siblings.findIndex((p) => p.id === beforeId) : -1;
+    const idx = at < 0 ? siblings.length : at;
+    const prev = siblings[idx - 1]?.order;
+    const next = siblings[idx]?.order;
+    const order =
+      prev === undefined && next === undefined ? 1 : prev === undefined ? next! - 1 : next === undefined ? prev + 1 : (prev + next) / 2;
+    const current = this.project(id);
+    if (!current || ((current.parentId ?? null) === parentId && current.order === order)) return;
+    await this.updateProject(id, { parentId, order });
   }
 
   /** Deletes the project and its tasks (from Notion too). Sub-projects move up a level. */

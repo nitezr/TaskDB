@@ -7,6 +7,10 @@ import { AppContext } from "./app/hooks";
 import { isTauri, tauriPlatform } from "./app/platform";
 import "./app/styles.css";
 
+// The Mac window has an overlay title bar and sidebar vibrancy (tauri.conf.json); the CSS makes
+// room for the traffic lights and lets the material show through.
+if (isTauri() && /Mac/.test(navigator.platform || navigator.userAgent)) document.documentElement.classList.add("mac-window");
+
 /** Shows a startup crash on screen instead of a blank window. */
 function showFatal(err: unknown) {
   const root = document.getElementById("root")!;

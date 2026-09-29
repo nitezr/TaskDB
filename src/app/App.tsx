@@ -22,6 +22,7 @@ import { buildViewModel, type DisplayPrefs, sameView, type View, viewKey, viewTa
 import { useApp } from "./hooks";
 import { actionForCombo, comboFromEvent } from "./shortcuts";
 import { type Anchor, anchorOf, type MenuEntry, playCompleteSound, Popover, useMenu } from "./ui";
+import { BackIcon, DisplayIcon, ForwardIcon, SearchIcon, SidebarIcon } from "./icons";
 
 interface Toast {
   text: string;
@@ -412,9 +413,8 @@ function Main() {
     <div className={`shell ${settings.sidebarHidden ? "no-sidebar" : ""}`}>
       <Sidebar
         view={view}
-        title={vm.title}
-        count={vm.count}
         onNavigate={navigate}
+        onToggleSidebar={() => app.updateSettings({ sidebarHidden: !settings.sidebarHidden })}
         onQuickAdd={() => setQuickAdd(vm.addDefaults)}
         onSettings={() => setSettingsTab("general")}
         onShortcuts={() => setShortcuts(true)}
@@ -423,35 +423,44 @@ function Main() {
         onToast={(text) => setToast({ text })}
       />
       <main className="main">
-        <div className="toolbar">
-          <button className="icon-btn" onClick={() => app.updateSettings({ sidebarHidden: !settings.sidebarHidden })} title="Toggle sidebar (⌘\)" aria-label="Toggle sidebar">
-            ◧
+        <div className="toolbar" data-tauri-drag-region>
+          {settings.sidebarHidden && (
+            <>
+              <span className="traffic-space" data-tauri-drag-region />
+              <button className="tool-btn" onClick={() => app.updateSettings({ sidebarHidden: false })} title="Show sidebar (⌘\)" aria-label="Show sidebar">
+                <SidebarIcon />
+              </button>
+            </>
+          )}
+          <button className="tool-btn" disabled={!back.length} onClick={goBack} title="Back (⌘[)" aria-label="Back">
+            <BackIcon />
           </button>
-          <button className="icon-btn" disabled={!back.length} onClick={goBack} title="Back (⌘[)" aria-label="Back">
-            ‹
+          <button className="tool-btn" disabled={!forward.length} onClick={goForward} title="Forward (⌘])" aria-label="Forward">
+            <ForwardIcon />
           </button>
-          <button className="icon-btn" disabled={!forward.length} onClick={goForward} title="Forward (⌘])" aria-label="Forward">
-            ›
-          </button>
-          <span className="grow" />
-          <button className="pill-btn" onClick={() => setPalette(true)} title="Search (⌘K)">
-            🔍 <span className="muted small">⌘K</span>
+          <div className="window-title" data-tauri-drag-region>
+            <b data-tauri-drag-region>
+              {vm.title}
+            </b>
+            <span data-tauri-drag-region>{`${vm.count} task${vm.count === 1 ? "" : "s"}`}
+              {vm.subtitle ? ` · ${vm.subtitle}` : ""}</span>
+          </div>
+          <span className="grow" data-tauri-drag-region />
+          <button className="tool-btn" onClick={() => setPalette(true)} title="Search (⌘K)" aria-label="Search">
+            <SearchIcon />
           </button>
           {view.kind !== "browse" && view.kind !== "completed" && view.kind !== "search" && (
-            <button className="pill-btn" onClick={(e) => setDisplayAnchor(anchorOf(e.currentTarget, "right"))}>
-              ⚌ Display
+            <button className="tool-pill" onClick={(e) => setDisplayAnchor(anchorOf(e.currentTarget, "right"))}>
+              <DisplayIcon /> Display
             </button>
           )}
         </div>
 
         <LicenseBanner onOpen={() => setPaywall(true)} />
 
-        {layout !== "calendar" && (
+        {layout !== "calendar" && (project || (view.kind === "upcoming" && layout === "board")) && (
           <div className={`view-head ${layout === "board" ? "wide" : ""}`}>
-            <div className="grow">
-              <h1>{vm.title}</h1>
-              {vm.subtitle && <div className="subtitle">{vm.subtitle}</div>}
-            </div>
+            <div className="grow" />
             {project && (
               <button
                 className="icon-btn"

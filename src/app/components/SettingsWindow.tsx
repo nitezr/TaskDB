@@ -88,10 +88,10 @@ function General() {
       <div className="field">
         Interface font
         <div className="segmented">
-          <button className={s.font === "avenir" ? "on" : ""} onClick={() => app.updateSettings({ font: "avenir" })} style={{ fontFamily: "Avenir Next, Avenir, sans-serif" }}>
+          <button className={s.font === "avenir" ? "on" : ""} onClick={() => app.updateSettings({ font: "avenir", fontPicked: true })} style={{ fontFamily: "Avenir Next, Avenir, sans-serif" }}>
             Avenir Next
           </button>
-          <button className={s.font === "system" ? "on" : ""} onClick={() => app.updateSettings({ font: "system" })} style={{ fontFamily: "-apple-system, sans-serif" }}>
+          <button className={s.font === "system" ? "on" : ""} onClick={() => app.updateSettings({ font: "system", fontPicked: true })} style={{ fontFamily: "-apple-system, sans-serif" }}>
             System (SF)
           </button>
         </div>

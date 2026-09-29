@@ -1,6 +1,7 @@
 import { dueDay, dueLabel, toDateStr } from "../../core/dates";
 import type { Task } from "../../types";
 import { useApp } from "../hooks";
+import { CalendarSmallIcon } from "../icons";
 import { dragProps } from "../ui";
 
 export interface TaskItemHandlers {
@@ -47,8 +48,8 @@ export function TaskItem(p: Props) {
 
   const date = task.due && (
     <span className={`due ${dueClass}`}>
-      {p.variant === "row" && "▦ "}
-      {task.recurrence && "↻ "}
+      {p.variant === "row" && <CalendarSmallIcon />}
+      {task.recurrence && <span className="recur">↻</span>}
       {dueLabel(task.due)}
     </span>
   );
@@ -138,7 +139,7 @@ export function TaskItem(p: Props) {
   }
 
   return (
-    <div className={`task ${state}`} style={{ paddingLeft: 8 + (p.depth ?? 0) * 28 }} {...common}>
+    <div className={`task ${state}`} style={{ paddingLeft: 4 + (p.depth ?? 0) * 28 }} {...common}>
       {p.childCount ? (
         <button
           className={`collapse ${p.collapsed ? "closed" : ""}`}
@@ -157,12 +158,15 @@ export function TaskItem(p: Props) {
       <div className="task-body">
         <div className={`task-title ${task.done ? "strike" : ""}`}>{task.title}</div>
         {task.notes && <div className="task-notes">{task.notes}</div>}
-        <div className="task-meta">
-          {date}
-          {chips}
-        </div>
+        {(date || task.labels.length > 0 || task.person || subs.length > 0 || projectLabel || task.syncError || !task.notionId) && (
+          <div className="task-meta">
+            {date}
+            {chips}
+            {projectLabel && <span className="grow" />}
+            {projectLabel}
+          </div>
+        )}
       </div>
-      {projectLabel}
     </div>
   );
 }
