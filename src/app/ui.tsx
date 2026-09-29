@@ -71,7 +71,7 @@ export function Popover({
 // ---- Menus ----
 
 export type MenuEntry =
-  | { label: string; icon?: string; onClick: () => void; danger?: boolean; disabled?: boolean; hint?: string }
+  | { label: string; icon?: React.ReactNode; onClick: () => void; danger?: boolean; disabled?: boolean; hint?: string }
   | { separator: true }
   | { heading: string };
 
@@ -95,7 +95,7 @@ export function Menu({ items, anchor, onClose }: { items: MenuEntry[]; anchor: A
               it.onClick();
             }}
           >
-            {it.icon && <span style={{ width: 16, textAlign: "center" }}>{it.icon}</span>}
+            <span className="menu-ico">{it.icon}</span>
             <span className="grow">{it.label}</span>
             {it.hint && <span className="muted small">{it.hint}</span>}
           </button>

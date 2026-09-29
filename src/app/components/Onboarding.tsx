@@ -1,3 +1,5 @@
+import appIcon from "../assets/app-icon.png";
+import { BoltIcon, ChevronIcon, DatabaseIcon, KeyboardIcon, PageIcon } from "../icons";
 import { useEffect, useState } from "react";
 import type { PageRef, WorkspaceIds } from "../../notion/setup";
 import { useApp } from "../hooks";
@@ -89,21 +91,14 @@ export function Onboarding() {
   const stepNo = step.kind === "token" ? 1 : step.kind === "access" ? 2 : 3;
 
   return (
-    <div className="onboarding">
+    <div className="onboarding" data-tauri-drag-region>
       <div className="card">
-        <div className="brand big">
-          <span className="logo">✓</span> TaskDB
-        </div>
-        <div className="steps-dots" aria-label={`Step ${stepNo} of 3`}>
-          {[1, 2, 3].map((n) => (
-            <span key={n} className={n <= stepNo ? "on" : ""} />
-          ))}
-        </div>
+        <img className="app-icon" src={appIcon} alt="" width={72} height={72} draggable={false} />
 
         {step.kind === "token" && mode === "oauth" && (
           <>
-            <h2>Connect your Notion</h2>
-            <p className="muted">One click. Your tasks stay in your own Notion.</p>
+            <h2>Welcome to TaskDB</h2>
+            <p className="muted">Todoist-fast task management, on top of your own Notion.</p>
             <button className="primary wide notion-connect" disabled={busy} onClick={() => void signIn()}>
               {busy ? "Waiting for Notion…" : "Connect with Notion"}
             </button>
@@ -126,7 +121,7 @@ export function Onboarding() {
             <ol className="big-steps">
               <li>
                 <button className="ghost" onClick={openNotion}>
-                  Open Notion ↗
+                  Open Notion
                 </button>
                 <span>
                   Click <b>New integration</b>, name it <b>TaskDB</b>, then <b>Save</b>.
@@ -199,7 +194,7 @@ export function Onboarding() {
               <span className="spinner" /> Waiting for access…
             </div>
             <button className="link small" onClick={openNotion}>
-              Open Notion again ↗
+              Open Notion again
             </button>
           </>
         )}
@@ -212,7 +207,7 @@ export function Onboarding() {
               {step.pages.map((p) => (
                 <li key={p.id}>
                   <button onClick={() => void finish({ parentPageId: p.id })}>
-                    📄 {p.title} <span className="muted">→</span>
+                    <PageIcon /> <span className="grow">{p.title}</span> <ChevronIcon />
                   </button>
                 </li>
               ))}
@@ -227,7 +222,37 @@ export function Onboarding() {
         )}
 
         {error && <p className="error-text small">{error}</p>}
+        <div className="steps-dots" aria-label={`Step ${stepNo} of 3`}>
+          {[1, 2, 3].map((n) => (
+            <span key={n} className={n === stepNo ? "on" : n < stepNo ? "done" : ""} />
+          ))}
+        </div>
       </div>
+      {step.kind === "token" && (
+        <ul className="onb-points">
+          <li>
+            <DatabaseIcon />
+            <span>
+              <b>Your data stays in Notion</b>
+              Tasks live in your own workspace. Nothing is stored on our servers.
+            </span>
+          </li>
+          <li>
+            <BoltIcon />
+            <span>
+              <b>Instant and offline</b>
+              A local copy makes every action immediate; changes sync in the background.
+            </span>
+          </li>
+          <li>
+            <KeyboardIcon size={18} />
+            <span>
+              <b>Keyboard first</b>
+              Capture, schedule and complete without touching the mouse.
+            </span>
+          </li>
+        </ul>
+      )}
     </div>
   );
 }

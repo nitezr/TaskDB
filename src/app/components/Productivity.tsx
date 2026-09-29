@@ -4,7 +4,7 @@ import type { AppController } from "../controller";
 import { useApp } from "../hooks";
 import { CloseIcon } from "../icons";
 
-const DAY_LETTERS = ["S", "M", "T", "W", "T", "F", "S"];
+const DAY_LETTERS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 export interface Stats {
   today: number;
@@ -74,7 +74,7 @@ export function Ring({ value, goal, size = 18, stroke = 2.5 }: { value: number; 
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className={`ring ${pct >= 1 ? "full" : ""}`} aria-hidden>
       <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} className="ring-track" />
-      <circle
+      {pct > 0 && <circle
         cx={size / 2}
         cy={size / 2}
         r={r}
@@ -84,7 +84,7 @@ export function Ring({ value, goal, size = 18, stroke = 2.5 }: { value: number; 
         strokeDasharray={`${c * pct} ${c}`}
         transform={`rotate(-90 ${size / 2} ${size / 2})`}
         className="ring-fill"
-      />
+      />}
     </svg>
   );
 }
@@ -158,11 +158,11 @@ export function Productivity({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
-        <div className="prod-chart" style={{ "--goal": `${(barGoal / max) * 100}%` } as React.CSSProperties}>
+        <div className="prod-chart" style={{ "--goal-frac": barGoal / max } as React.CSSProperties}>
           {bars.map((n, i) => (
             <div key={i} className="prod-bar-col">
               <div className="prod-bar-track">
-                <div className={`prod-bar ${n >= barGoal ? "met" : ""} ${i === bars.length - 1 ? "now" : ""}`} style={{ height: `${(n / max) * 100}%` }}>
+                <div className={`prod-bar ${n === 0 ? "zero" : n >= barGoal ? "met" : ""} ${i === bars.length - 1 && n ? "now" : ""}`} style={{ height: `${(n / max) * 100}%` }}>
                   {n > 0 && <span>{n}</span>}
                 </div>
               </div>

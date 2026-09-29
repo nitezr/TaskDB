@@ -1,7 +1,9 @@
-import { deadlineLabel, dueDay, dueLabel, formatDuration, toDateStr } from "../../core/dates";
+import { deadlineLabel, dueDay, dueLabel, formatDuration, hasTime, parseDue, toDateStr } from "../../core/dates";
+
+const timeLabel = (due: string) => parseDue(due).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 import type { Task } from "../../types";
 import { useApp } from "../hooks";
-import { CalendarSmallIcon, ChevronIcon, FlagIcon, PersonIcon, SubtaskIcon } from "../icons";
+import { CalendarSmallIcon, ChevronIcon, FlagIcon, PersonIcon, RepeatIcon, SubtaskIcon, WarningIcon } from "../icons";
 import { dragProps } from "../ui";
 
 export interface TaskItemHandlers {
@@ -23,6 +25,8 @@ interface Props extends TaskItemHandlers {
   collapsed?: boolean;
   onToggleCollapse?: () => void;
   onDropBefore?: (draggedId: string) => void;
+  /** The day the surrounding group stands for, if it's a day heading. */
+  groupDay?: string | null;
 }
 
 export function TaskItem(p: Props) {
@@ -47,13 +51,20 @@ export function TaskItem(p: Props) {
     </button>
   );
 
-  const date = task.due && (
+  // Under a heading that already names the day ("Today", "30 Sep · Tomorrow") the row doesn't
+  // repeat it: only a time, if there is one (Things).
+  const sameDay = !!task.due && !!p.groupDay && dueDay(task.due) === p.groupDay && !task.done;
+  const date = task.due && !(sameDay && !hasTime(task.due) && !task.recurrence && !task.duration) && (
     <>
-      {p.variant === "card" && task.recurrence && <span className="recur muted">↻</span>}
+      {p.variant === "card" && task.recurrence && (
+        <span className="recur muted">
+          <RepeatIcon />
+        </span>
+      )}
       <span className={`due ${dueClass}`}>
-        {p.variant === "row" && <CalendarSmallIcon />}
-        {task.recurrence && p.variant === "row" && <span className="recur">↻</span>}
-        {dueLabel(task.due)}
+        {p.variant === "row" && !sameDay && <CalendarSmallIcon />}
+        {task.recurrence && p.variant === "row" && <RepeatIcon />}
+        {sameDay ? (hasTime(task.due) ? timeLabel(task.due) : task.recurrence ? "" : null) : dueLabel(task.due)}
         {task.duration ? <span className="dur"> · {formatDuration(task.duration)}</span> : null}
       </span>
     </>
@@ -86,7 +97,7 @@ export function TaskItem(p: Props) {
       )}
       {task.syncError && (
         <span className="sync-error" title={task.syncError}>
-          ⚠ Not synced
+          <WarningIcon size={11} /> Not synced
         </span>
       )}
       {!task.notionId && !task.syncError && (

@@ -9,6 +9,7 @@ import {
   GearIcon,
   HashIcon,
   HelpIcon,
+  I,
   InboxIcon,
   PlusIcon,
   SidebarIcon,
@@ -150,11 +151,11 @@ export function Sidebar(p: Props) {
     const options = tree.filter(({ project }) => !app.isWithinProject(project.id, proj.id));
     menu.open({ x: e.clientX, y: e.clientY }, [
       { heading: `Move “${proj.name}” to` },
-      { label: "Top level", icon: proj.parentId ? "" : "✓", onClick: () => move(proj.id, null, null) },
+      { label: "Top level", icon: proj.parentId ? "" : <I.check />, onClick: () => move(proj.id, null, null) },
       { separator: true },
       ...options.map(({ project, depth }) => ({
         label: `${"   ".repeat(depth)}${project.emoji ? project.emoji + " " : ""}${project.name}`,
-        icon: proj.parentId === project.id ? "✓" : "",
+        icon: proj.parentId === project.id ? <I.check /> : "",
         onClick: () => move(proj.id, project.id, null),
       })),
     ]);
@@ -173,22 +174,22 @@ export function Sidebar(p: Props) {
     const siblings = tree.filter((t) => (t.project.parentId ?? null) === (proj.parentId ?? null));
     const i = siblings.findIndex((t) => t.project.id === proj.id);
     menu.open({ x: e.clientX, y: e.clientY }, [
-      { label: "Edit project…", icon: "✎", onClick: () => p.onEditProject(proj.id) },
-      { label: "Add sub-project…", icon: "↳", onClick: () => p.onEditProject(null, proj.id) },
+      { label: "Edit project…", icon: <I.edit />, onClick: () => p.onEditProject(proj.id) },
+      { label: "Add sub-project…", icon: <I.subProject />, onClick: () => p.onEditProject(null, proj.id) },
       {
         label: proj.favorite ? "Remove from favorites" : "Add to favorites",
-        icon: proj.favorite ? "☆" : "★",
+        icon: proj.favorite ? <I.starOutline /> : <I.star />,
         onClick: () => void app.updateProject(proj.id, { favorite: !proj.favorite }),
       },
       { separator: true },
-      { label: "Move up", icon: "↑", disabled: i <= 0, onClick: () => shift(proj, -1) },
-      { label: "Move down", icon: "↓", disabled: i < 0 || i >= siblings.length - 1, onClick: () => shift(proj, 1) },
-      { label: "Move to…", icon: "→", onClick: () => setTimeout(() => moveMenu(proj, e)) },
+      { label: "Move up", icon: <I.up />, disabled: i <= 0, onClick: () => shift(proj, -1) },
+      { label: "Move down", icon: <I.down />, disabled: i < 0 || i >= siblings.length - 1, onClick: () => shift(proj, 1) },
+      { label: "Move to…", icon: <I.right />, onClick: () => setTimeout(() => moveMenu(proj, e)) },
       { separator: true },
-      { label: "Save as template…", icon: "⧉", onClick: () => p.onSaveTemplate(proj.id) },
+      { label: "Save as template…", icon: <I.copy />, onClick: () => p.onSaveTemplate(proj.id) },
       {
         label: "Archive",
-        icon: "🗄",
+        icon: <I.archive />,
         onClick: () => {
           void app.updateProject(proj.id, { archived: true });
           if (p.view.kind === "project" && p.view.id === proj.id) p.onNavigate({ kind: "inbox" });
@@ -197,7 +198,7 @@ export function Sidebar(p: Props) {
       },
       {
         label: "Delete project",
-        icon: "🗑",
+        icon: <I.trash />,
         danger: true,
         onClick: () =>
           void askConfirm(`Delete “${proj.name}”?`, "Delete Project and Tasks", {
@@ -216,7 +217,10 @@ export function Sidebar(p: Props) {
   };
 
   const row = (v: View, icon: React.ReactNode, label: string, count?: number, extra?: object, cls = "") => (
-    <button key={JSON.stringify(v)} className={`nav ${sameView(v, p.view) ? "active" : ""} ${cls}`} onClick={() => p.onNavigate(v)} {...extra}>
+    <button
+      key={JSON.stringify(v)}
+      // A favourite is also in the tree; only the tree row takes the selection, so it never shows twice.
+      className={`nav ${sameView(v, p.view) ? (cls.includes("fav") ? "current" : "active") : ""} ${cls}`} onClick={() => p.onNavigate(v)} {...extra}>
       <span className="nav-icon">{icon}</span>
       <span className="nav-label">{label}</span>
       {count ? <span className="count">{count}</span> : null}
@@ -248,7 +252,7 @@ export function Sidebar(p: Props) {
         {row({ kind: "project", id: proj.id }, projectIcon(proj, kids), proj.name, projectCount(proj.id), {
           onContextMenu: (e: React.MouseEvent) => projectMenu(proj, e),
           ...(inFavorites ? dropProps((taskId) => app.updateTask(taskId, { projectId: proj.id, section: null })) : projectDnD(proj)),
-        })}
+        }, inFavorites ? "fav" : "")}
       </div>
     );
   };
@@ -298,7 +302,7 @@ export function Sidebar(p: Props) {
           section(
             "sidebar:filters",
             "Filters",
-            filters.map((f) => row({ kind: "filter", id: f.id }, <FilterIcon />, f.name, countFor({ kind: "filter", id: f.id }, app), undefined, "indent")),
+            filters.map((f) => row({ kind: "filter", id: f.id }, <FilterIcon />, f.name, countFor({ kind: "filter", id: f.id }, app), undefined, "filter-row")),
           )}
 
         {favorites.length > 0 && section("sidebar:favorites", "Favorites", favorites.map((f) => projectRow(f, 0, true)))}
@@ -326,8 +330,8 @@ export function Sidebar(p: Props) {
       </div>
 
       <div className="sidebar-footer">
-        <button className="foot-btn" onClick={p.onShortcuts} title="Keyboard shortcuts (?)">
-          <HelpIcon /> Keyboard Shortcuts
+        <button className="foot-btn" onClick={p.onShortcuts} title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">
+          <HelpIcon />
         </button>
         <span className="grow" />
         {settings.dailyGoal > 0 && (

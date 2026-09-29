@@ -140,8 +140,7 @@ function General() {
           </div>
         </div>
         <p className="caption">
-          Avenir Next is rounder and lighter, but has a smaller x-height, so it reads a size down at the small sizes most of this interface uses. SF is
-          drawn for that range and is usually crisper on screen.
+          SF is crisper at small sizes; Avenir Next is rounder and lighter.
         </p>
       </div>
 

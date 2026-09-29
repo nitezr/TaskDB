@@ -183,7 +183,7 @@ export function QuickAdd({ defaults = {}, onDone, variant, onAdded }: Props) {
               ) : suggestion!.trigger === "@" ? (
                 <span className="dot" style={{ background: "#6b7280" }} />
               ) : (
-                <span className="suggest-person">👤</span>
+                <PersonIcon size={10} />
               )}
               {o}
             </button>

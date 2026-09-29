@@ -76,7 +76,7 @@ function seed(n: FakeNotion) {
   };
   const task = (
     t: string,
-    o: { due?: string; p?: number; project?: string; section?: string; labels?: string[]; person?: string; rec?: string; parent?: string; notes?: string } = {},
+    o: { due?: string; p?: number; project?: string; section?: string; labels?: string[]; person?: string; rec?: string; parent?: string; notes?: string; deadline?: string; mins?: number } = {},
   ) =>
     n.addPage({
       Name: title(t),
@@ -90,6 +90,8 @@ function seed(n: FakeNotion) {
       Person: sel(o.person),
       Recurrence: text(o.rec),
       "Parent item": rel(o.parent),
+      Deadline: date(o.deadline ?? null),
+      "Duration (min)": { number: o.mins ?? null },
     });
 
   task("Send Priya the signed contract", { due: d(-2), p: 2, project: acme, section: "Planning", person: "Priya", labels: ["waiting"] });
@@ -99,6 +101,8 @@ function seed(n: FakeNotion) {
   task("Check in with Sam about beta feedback", { due: d(0), p: 3, project: orbit, section: "Features", person: "Sam", labels: ["waiting"] });
   const copy = task("Finalize launch announcement copy", {
     due: at(0, 10),
+    mins: 90,
+    deadline: d(2),
     p: 1,
     project: acme,
     section: "Launch week",
@@ -106,7 +110,7 @@ function seed(n: FakeNotion) {
     notes: "Keep it under 150 words and lead with the problem.",
   });
   task("Get legal sign-off", { project: acme, section: "Launch week", parent: copy.id });
-  task("Review Orbit onboarding designs", { due: at(0, 14), p: 2, project: orbit, section: "Features", person: "Leo" });
+  task("Review Orbit onboarding designs", { due: at(0, 14), mins: 45, p: 2, project: orbit, section: "Features", person: "Leo" });
   task("Water the plants", { due: at(0, 18), project: home, rec: "every mon,thu" });
   task("Grocery run", { due: d(1), project: home });
   task("Read chapter 4 of Deep Work", { due: d(1), project: reading });
@@ -118,10 +122,10 @@ function seed(n: FakeNotion) {
   task("Draft the press kit", { due: d(3), p: 2, project: acme, section: "Design" });
   task("Pick the brand colour palette", { project: acme, section: "Design", person: "Priya" });
   task("Compare email marketing tools", { project: acme, section: "Planning", labels: ["decision"] });
-  task("Record the product demo video", { due: d(4), p: 1, project: acme, section: "Launch week", person: "Sam" });
+  task("Record the product demo video", { due: d(4), deadline: d(6), p: 1, project: acme, section: "Launch week", person: "Sam" });
   task("Move savings to the holiday fund", { due: d(3), project: finance });
   task("Ship Orbit 1.2 to TestFlight", { due: d(6), p: 1, project: orbit, section: "Features" });
-  task("Quarterly taxes", { due: d(12), p: 1, project: finance });
+  task("Quarterly taxes", { due: d(12), deadline: d(15), p: 1, project: finance });
   task("Plant the herb garden", { labels: ["someday"] });
   task("Learn to make sourdough", { labels: ["someday"] });
   task("Sketch the side-project landing page", { labels: ["someday"] });

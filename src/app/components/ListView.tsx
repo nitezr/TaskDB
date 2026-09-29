@@ -3,7 +3,7 @@ import type { ScheduleTarget } from "../controller";
 import type { Group, TaskNode, ViewModel } from "../display";
 import { nest } from "../display";
 import { useApp } from "../hooks";
-import { PlusIcon } from "../icons";
+import { CheckCircleIcon, I, PlusIcon } from "../icons";
 import { anchorOf, dropProps, useMenu } from "../ui";
 import { askConfirm } from "../confirm";
 import { QuickAdd } from "./QuickAdd";
@@ -135,13 +135,13 @@ function GroupBlock({
     if (!sec?.name) return;
     const name = sec.name;
     menu.open(anchorOf(el), [
-      { label: "Rename section", icon: "✎", onClick: () => setRenaming(name) },
-      { label: "Move up", icon: "↑", onClick: () => void app.moveSection(sec.projectId, name, -1) },
-      { label: "Move down", icon: "↓", onClick: () => void app.moveSection(sec.projectId, name, 1) },
+      { label: "Rename section", icon: <I.edit />, onClick: () => setRenaming(name) },
+      { label: "Move up", icon: <I.up />, onClick: () => void app.moveSection(sec.projectId, name, -1) },
+      { label: "Move down", icon: <I.down />, onClick: () => void app.moveSection(sec.projectId, name, 1) },
       { separator: true },
       {
         label: "Delete section",
-        icon: "🗑",
+        icon: <I.trash />,
         danger: true,
         onClick: () =>
           void askConfirm(`Delete section “${name}”?`, "Delete Section", { detail: "Its tasks stay in the project, without a section." }).then(
@@ -236,6 +236,7 @@ function Rows({ node, depth, ctx, group }: { node: TaskNode; depth: number; ctx:
         selected={ctx.selected === task.id || ctx.multi.has(task.id)}
         completing={ctx.completing.has(task.id)}
         showProject={ctx.showProject}
+        groupDay={group.patch?.due && !group.overdue ? group.patch.due : null}
         onSelect={ctx.onSelect}
         onOpen={ctx.onOpen}
         onComplete={ctx.onComplete}
@@ -254,7 +255,7 @@ function Rows({ node, depth, ctx, group }: { node: TaskNode; depth: number; ctx:
 function Empty({ title }: { title: string }) {
   return (
     <div className="empty">
-      <div className="empty-mark">✓</div>
+      <div className="empty-mark"><CheckCircleIcon size={40} /></div>
       <p>{title === "Today" ? "All clear for today. Enjoy the rest of your day!" : "Nothing here yet."}</p>
       <p className="small">
         Press <kbd>Q</kbd> to add a task.

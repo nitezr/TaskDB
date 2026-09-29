@@ -2,7 +2,7 @@ import { useState } from "react";
 import { askConfirm } from "../confirm";
 import type { Group, ViewModel } from "../display";
 import { useApp } from "../hooks";
-import { PlusIcon } from "../icons";
+import { PlusIcon, I } from "../icons";
 import { anchorOf, dropProps, useMenu } from "../ui";
 import { type ViewCtx, orderBefore, RESCHEDULE_TARGETS } from "./ListView";
 import { QuickAdd } from "./QuickAdd";
@@ -83,13 +83,13 @@ function Column({
     if (!sec?.name) return;
     const name = sec.name;
     menu.open(anchorOf(el), [
-      { label: "Rename section", icon: "✎", onClick: () => setRenaming(name) },
-      { label: "Move left", icon: "←", onClick: () => void app.moveSection(sec.projectId, name, -1) },
-      { label: "Move right", icon: "→", onClick: () => void app.moveSection(sec.projectId, name, 1) },
+      { label: "Rename section", icon: <I.edit />, onClick: () => setRenaming(name) },
+      { label: "Move left", icon: <I.left />, onClick: () => void app.moveSection(sec.projectId, name, -1) },
+      { label: "Move right", icon: <I.right />, onClick: () => void app.moveSection(sec.projectId, name, 1) },
       { separator: true },
       {
         label: "Delete section",
-        icon: "🗑",
+        icon: <I.trash />,
         danger: true,
         onClick: () =>
           void askConfirm(`Delete section “${name}”?`, "Delete Section", { detail: "Its tasks stay in the project, without a section." }).then(

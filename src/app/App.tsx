@@ -26,7 +26,7 @@ import { useApp } from "./hooks";
 import { actionForCombo, comboFromEvent } from "./shortcuts";
 import { type Anchor, anchorOf, type MenuEntry, playCompleteSound, Popover, useMenu } from "./ui";
 import { THEMES } from "./themes";
-import { BackIcon, CloseIcon, DisplayIcon, ForwardIcon, SearchIcon, SidebarIcon } from "./icons";
+import { BackIcon, ChevronIcon, CloseIcon, DisplayIcon, ForwardIcon, I, SearchIcon, SidebarIcon, WarningIcon } from "./icons";
 
 interface Toast {
   text: string;
@@ -308,7 +308,7 @@ function Main() {
     const moveMenu = () =>
       taskMenu.open(at, [
         { heading: many ? `Move ${ids.length} tasks to` : "Move to" },
-        { label: "Inbox", icon: "📥", onClick: () => updateMany(ids, { projectId: null, section: null }, "Moved to Inbox") },
+        { label: "Inbox", icon: <I.inbox />, onClick: () => updateMany(ids, { projectId: null, section: null }, "Moved to Inbox") },
         ...app.projectTree().map(({ project, depth }) => ({
           label: `${"   ".repeat(depth)}${project.name}`,
           icon: project.emoji ?? "#",
@@ -327,11 +327,11 @@ function Main() {
       ...(many
         ? [{ heading: `${ids.length} tasks selected` } as MenuEntry]
         : [
-            { label: "Open details", icon: "↗", hint: "↩", onClick: () => setOpenId(id) },
-            { label: "Edit tags…", icon: "#", hint: "L", onClick: () => setLabelsFor({ id, anchor: at }) },
+            { label: "Open details", icon: <I.open />, hint: "↩", onClick: () => setOpenId(id) },
+            { label: "Edit tags…", icon: <I.tags />, hint: "L", onClick: () => setLabelsFor({ id, anchor: at }) },
           ]),
-      { label: t.done && !many ? "Reopen" : "Complete", icon: "✓", hint: "E", onClick: () => (t.done && !many ? complete(id) : completeMany(ids)) },
-      ...(t.recurrence && !many ? [{ label: "Skip this occurrence", icon: "↷", onClick: () => (app.skipOccurrence(id), setToast({ text: "Skipped to the next date", undo: true })) }] : []),
+      { label: t.done && !many ? "Reopen" : "Complete", icon: <I.check />, hint: "E", onClick: () => (t.done && !many ? complete(id) : completeMany(ids)) },
+      ...(t.recurrence && !many ? [{ label: "Skip this occurrence", icon: <I.skip />, onClick: () => (app.skipOccurrence(id), setToast({ text: "Skipped to the next date", undo: true })) }] : []),
       { separator: true },
       ...RESCHEDULE_TARGETS.filter(([target]) => target !== "none").map(([target, label]) => ({ label, hint: hint(target), onClick: () => reschedule(ids, target) })),
       { label: "Pick a date…", icon: "", hint: "S", onClick: () => setPicker({ kind: "due", ids, anchor: at }) },
@@ -340,23 +340,23 @@ function Main() {
       { separator: true },
       ...([1, 2, 3, 4] as Priority[]).map((p) => ({
         label: `Priority ${p}`,
-        icon: !many && t.priority === p ? "✓" : "",
+        icon: !many && t.priority === p ? <I.check /> : "",
         hint: String(p),
         onClick: () => updateMany(ids, { priority: p }, `Set priority ${p}`),
       })),
       { separator: true },
-      { label: "Move to…", icon: "→", onClick: () => setTimeout(moveMenu) },
+      { label: "Move to…", icon: <I.right />, onClick: () => setTimeout(moveMenu) },
       ...(!many
         ? [
-            { label: "Duplicate", icon: "⧉", hint: "⌘D", onClick: () => duplicate(id) },
-            { label: "Copy link", icon: "🔗", hint: "⌘⇧C", onClick: () => copyLink(id) },
-            ...(url ? [{ label: "Open in Notion", icon: "N", onClick: () => void app.platform.openUrl(url) }] : []),
+            { label: "Duplicate", icon: <I.copy />, hint: "⌘D", onClick: () => duplicate(id) },
+            { label: "Copy link", icon: <I.link />, hint: "⌘⇧C", onClick: () => copyLink(id) },
+            ...(url ? [{ label: "Open in Notion", icon: <I.open />, onClick: () => void app.platform.openUrl(url) }] : []),
           ]
         : []),
       { separator: true },
       {
         label: many ? `Delete ${ids.length} tasks` : "Delete task",
-        icon: "🗑",
+        icon: <I.trash />,
         hint: "⌘⌫",
         danger: true,
         onClick: () =>
@@ -603,17 +603,17 @@ function Main() {
 
   const openIdx = openId ? order.indexOf(openId) : -1;
   const paletteActions: PaletteAction[] = [
-    { label: "Add task", kind: "Action", icon: "+", run: () => setQuickAdd(vm.addDefaults) },
-    { label: "New project", kind: "Action", icon: "📁", run: () => setProjectDialog({ id: null }) },
-    { label: "Toggle sidebar", kind: "Action", icon: "◧", run: () => app.updateSettings({ sidebarHidden: !settings.sidebarHidden }) },
-    { label: "Keyboard shortcuts", kind: "Action", icon: "⌨", run: () => setShortcuts(true) },
-    { label: "Settings", kind: "Action", icon: "⚙", run: () => setSettingsTab("general") },
-    { label: "Switch to List layout", kind: "Action", icon: "☰", run: () => setPrefs({ layout: "list" }) },
-    { label: "Switch to Board layout", kind: "Action", icon: "▥", run: () => setPrefs({ layout: "board" }) },
-    { label: "Switch to Calendar layout", kind: "Action", icon: "▦", run: () => setPrefs({ layout: "calendar" }) },
-    { label: "Undo", kind: "Action", icon: "↶", run: undo },
-    { label: "Productivity", kind: "Action", icon: "◔", run: () => setProductivity(true) },
-    { label: "Import from Todoist…", kind: "Action", icon: "⇣", run: () => setSettingsTab("import") },
+    { label: "Add task", kind: "Action", icon: <I.plus />, run: () => setQuickAdd(vm.addDefaults) },
+    { label: "New project", kind: "Action", icon: <I.folder />, run: () => setProjectDialog({ id: null }) },
+    { label: "Toggle sidebar", kind: "Action", icon: <I.sidebar />, run: () => app.updateSettings({ sidebarHidden: !settings.sidebarHidden }) },
+    { label: "Keyboard shortcuts", kind: "Action", icon: <I.keyboard />, run: () => setShortcuts(true) },
+    { label: "Settings", kind: "Action", icon: <I.gear />, run: () => setSettingsTab("general") },
+    { label: "Switch to List layout", kind: "Action", icon: <I.list />, run: () => setPrefs({ layout: "list" }) },
+    { label: "Switch to Board layout", kind: "Action", icon: <I.board />, run: () => setPrefs({ layout: "board" }) },
+    { label: "Switch to Calendar layout", kind: "Action", icon: <I.calendar />, run: () => setPrefs({ layout: "calendar" }) },
+    { label: "Undo", kind: "Action", icon: <I.undo />, run: undo },
+    { label: "Productivity", kind: "Action", icon: <I.productivity />, run: () => setProductivity(true) },
+    { label: "Import from Todoist…", kind: "Action", icon: <I.import />, run: () => setSettingsTab("import") },
     ...THEMES.map((t) => ({
       label: `Theme: ${t.name}`,
       kind: "Appearance",
@@ -670,7 +670,7 @@ function Main() {
           <div className="window-title" data-tauri-drag-region>
             <b data-tauri-drag-region>
               {vm.title}
-              {progress && progress.total > 0 && (
+              {progress && progress.done > 0 && (
                 <span className="title-progress" title={`${progress.done} of ${progress.total} tasks done`}>
                   <Ring value={progress.done} goal={progress.total} size={13} stroke={2} />
                 </span>
@@ -679,7 +679,7 @@ function Main() {
             <span data-tauri-drag-region>
               {view.kind !== "browse" && `${vm.count} task${vm.count === 1 ? "" : "s"}`}
               {hiddenByFilters > 0 ? ` · ${hiddenByFilters} hidden by filters` : ""}
-              {progress && progress.total > 0 ? ` · ${Math.round((progress.done / progress.total) * 100)}% done` : ""}
+              {progress && progress.done > 0 ? ` · ${Math.round((progress.done / progress.total) * 100)}% done` : ""}
               {vm.subtitle ? ` · ${vm.subtitle}` : ""}
             </span>
           </div>
@@ -690,13 +690,13 @@ function Main() {
               onClick={(e) => {
                 const a = anchorOf(e.currentTarget, "right");
                 taskMenu.open(a, [
-                  { label: "Edit project…", icon: "✎", onClick: () => setProjectDialog({ id: project.id }) },
-                  { label: "Add section", icon: "▤", onClick: () => {
+                  { label: "Edit project…", icon: <I.edit />, onClick: () => setProjectDialog({ id: project.id }) },
+                  { label: "Add section", icon: <I.section />, onClick: () => {
                     const name = `Section ${app.sections(project.id).length + 1}`;
                     void app.addSection(project.id, name);
                   } },
-                  { label: project.favorite ? "Remove from favorites" : "Add to favorites", icon: "★", onClick: () => void app.updateProject(project.id, { favorite: !project.favorite }) },
-                  { label: "Save as template…", icon: "⧉", onClick: () => setTemplateFor(project.id) },
+                  { label: project.favorite ? "Remove from favorites" : "Add to favorites", icon: <I.star />, onClick: () => void app.updateProject(project.id, { favorite: !project.favorite }) },
+                  { label: "Save as template…", icon: <I.copy />, onClick: () => setTemplateFor(project.id) },
                 ]);
               }}
               aria-label="Project menu"
@@ -719,7 +719,7 @@ function Main() {
         <LicenseBanner onOpen={() => setPaywall(true)} />
         {app.lastError && (
           <div className="banner error app-error">
-            <span className="warn">⚠</span>
+            <span className="warn"><WarningIcon size={13} /></span>
             <span className="grow">{app.lastError}</span>
             <button className="icon-btn" onClick={() => app.dismissError()} aria-label="Dismiss" title="Dismiss">
               <CloseIcon size={12} />
@@ -734,13 +734,13 @@ function Main() {
             {view.kind === "upcoming" && layout === "board" && (
               <div className="board-nav">
                 <button onClick={() => setUpcomingWeek((w) => Math.max(0, w - 1))} disabled={upcomingWeek === 0} aria-label="Previous week">
-                  ‹
+                  <ChevronIcon size={10} className="flip" />
                 </button>
                 <button className="today-btn" onClick={() => setUpcomingWeek(0)}>
                   Today
                 </button>
                 <button onClick={() => setUpcomingWeek((w) => w + 1)} aria-label="Next week">
-                  ›
+                  <ChevronIcon size={10} />
                 </button>
               </div>
             )}

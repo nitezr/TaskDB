@@ -1,3 +1,4 @@
+import appIcon from "../assets/app-icon.png";
 import { useState } from "react";
 import { CHECKOUT_URL, type LicenseState } from "../../license/license";
 import { askConfirm } from "../confirm";
@@ -66,7 +67,7 @@ export function Paywall({ onClose }: { onClose: () => void }) {
     <div className="overlay" onMouseDown={onClose}>
       <div className="modal paywall" onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
         <div className="brand big">
-          <span className="logo">✓</span> TaskDB
+          <img className="app-icon small" src={appIcon} alt="" width={28} height={28} /> TaskDB
         </div>
         <p className={s.kind === "expired" ? "error-text" : "muted"}>{describeLicense(s)}</p>
         <ul className="benefits">

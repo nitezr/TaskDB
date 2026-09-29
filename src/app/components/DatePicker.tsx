@@ -2,7 +2,7 @@ import { useState } from "react";
 import { addDays, addMonths, dueDay, formatDue, hasTime, parseDue, startOfDay, toDateStr } from "../../core/dates";
 import { parseQuickAdd } from "../../core/quickAdd";
 import { useApp } from "../hooks";
-import { ChevronDownIcon, ChevronUpIcon } from "../icons";
+import { ArrowRightIcon, ChevronDownIcon, ChevronUpIcon, ClockIcon, MoonIcon, NoDateIcon, StarIcon, SunIcon } from "../icons";
 import { type Anchor, Popover } from "../ui";
 
 const DURATIONS = [15, 30, 45, 60, 90, 120, 180];
@@ -56,13 +56,14 @@ export function DatePicker({
   const saturday = addDays(today, (6 - today.getDay() + 7) % 7 || 7);
   const monday = addDays(today, (8 - today.getDay()) % 7 || 7);
   const currentDay = current ? toDateStr(current) : null;
-  const quick: [string, string, Date, string][] = [
+  // Colour carries meaning, as in Things: yellow-ish today, orange tomorrow, blue weekend.
+  const quick: [string, React.ReactNode, Date, string][] = [
     currentDay === toDateStr(today) || currentDay === toDateStr(addDays(today, 1))
-      ? ["Later this week", "›", addDays(today, 2), weekday(addDays(today, 2))]
-      : ["Today", "★", today, weekday(today)],
-    ["Tomorrow", "☀", addDays(today, 1), weekday(addDays(today, 1))],
-    ["This weekend", "☾", saturday, weekday(saturday)],
-    ["Next week", "→", monday, short(monday)],
+      ? ["Later this week", <ArrowRightIcon className="c-later" />, addDays(today, 2), weekday(addDays(today, 2))]
+      : ["Today", <StarIcon className="c-today" />, today, weekday(today)],
+    ["Tomorrow", <SunIcon className="c-tomorrow" />, addDays(today, 1), weekday(addDays(today, 1))],
+    ["This weekend", <MoonIcon className="c-weekend" />, saturday, weekday(saturday)],
+    ["Next week", <ArrowRightIcon className="c-next" />, monday, short(monday)],
   ];
 
   const lead = (month.getDay() - weekStart + 7) % 7;
@@ -120,7 +121,9 @@ export function DatePicker({
               onClose();
             }}
           >
-            <span className="dp-icon">⊘</span>
+            <span className="dp-icon">
+              <NoDateIcon />
+            </span>
             <span className="grow">{mode === "deadline" ? "Remove deadline" : "No date"}</span>
           </button>
         )}
@@ -185,8 +188,8 @@ export function DatePicker({
               )}
             </div>
           ) : (
-            <button className="link small" onClick={() => setShowTime(true)}>
-              + Time
+            <button className="dp-add-time" onClick={() => setShowTime(true)}>
+              <ClockIcon size={12} /> Add time
             </button>
           )}
           {onDuration && (

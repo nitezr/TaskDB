@@ -111,7 +111,7 @@ export function DetailPeek({ id, onClose, onOpen, prevId, nextId, onComplete }: 
             </button>
           ) : (
             <span className="crumb">
-              <HashIcon size={11} /> {project ? `${project.emoji ?? ""} ${project.name}` : "Inbox"}
+              {project?.emoji ? <span>{project.emoji}</span> : <HashIcon size={11} />} {project ? project.name : "Inbox"}
               {task.section ? ` / ${task.section}` : ""}
             </span>
           )}
@@ -123,9 +123,9 @@ export function DetailPeek({ id, onClose, onOpen, prevId, nextId, onComplete }: 
             <ChevronDownIcon />
           </button>
           <button
-            className="icon-btn"
-            style={{ color: "var(--p1)" }}
+            className="icon-btn trash"
             aria-label="Delete task"
+            title="Delete (⌘⌫)"
             onClick={() =>
               void askConfirm("Delete this task?", "Delete Task", {
                 detail: `“${task.title}”${subs.length ? ` and its ${subs.length} sub-task(s)` : ""} will also be removed from Notion. ⌘Z undoes it.`,
@@ -316,7 +316,7 @@ export function DetailPeek({ id, onClose, onOpen, prevId, nextId, onComplete }: 
               <div className="segmented prio-seg">
                 {([1, 2, 3, 4] as Priority[]).map((p) => (
                   <button key={p} className={`p${p} ${task.priority === p ? "on" : ""}`} onClick={() => update({ priority: p })}>
-                    P{p}
+                    <FlagIcon size={10} />P{p}
                   </button>
                 ))}
               </div>

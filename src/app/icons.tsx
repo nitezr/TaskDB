@@ -243,3 +243,119 @@ export const ImportIcon = (p?: IconProps) =>
     </>,
     p,
   );
+export const RepeatIcon = (p?: IconProps) =>
+  svg(
+    <>
+      <path d="M3 7.2V6a2.5 2.5 0 0 1 2.5-2.5h7.3M10.8 1.5l2 2-2 2" />
+      <path d="M13 8.8V10a2.5 2.5 0 0 1-2.5 2.5H3.2M5.2 14.5l-2-2 2-2" />
+    </>,
+    { size: 10, ...p },
+  );
+export const MoonIcon = ({ filled, ...p }: IconProps & { filled?: boolean }) =>
+  svg(<path d="M13 9.6A5.6 5.6 0 0 1 6.4 3a5.6 5.6 0 1 0 6.6 6.6Z" fill={filled ? "currentColor" : "none"} />, { size: 14, ...p });
+export const StarIcon = (p?: IconProps) => svg(<path d="m8 2.2 1.7 3.6 3.9.5-2.9 2.7.7 3.9L8 11l-3.4 1.9.7-3.9-2.9-2.7 3.9-.5Z" fill="currentColor" />, { size: 13, ...p });
+export const SunIcon = (p?: IconProps) =>
+  svg(
+    <>
+      <circle cx="8" cy="8" r="2.8" />
+      <path d="M8 1.8v1.4M8 12.8v1.4M14.2 8h-1.4M3.2 8H1.8M12.4 3.6l-1 1M4.6 11.4l-1 1M12.4 12.4l-1-1M4.6 4.6l-1-1" />
+    </>,
+    { size: 13, ...p },
+  );
+export const ArrowRightIcon = (p?: IconProps) => svg(<path d="M3 8h10M9 4l4 4-4 4" />, { size: 13, ...p });
+export const NoDateIcon = (p?: IconProps) =>
+  svg(
+    <>
+      <circle cx="8" cy="8" r="6" />
+      <path d="m3.8 12.2 8.4-8.4" />
+    </>,
+    { size: 13, ...p },
+  );
+export const WarningIcon = (p?: IconProps) =>
+  svg(
+    <>
+      <path d="M7.1 2.6a1 1 0 0 1 1.8 0l5.4 9.8a1 1 0 0 1-.9 1.5H2.6a1 1 0 0 1-.9-1.5Z" />
+      <path d="M8 6.2v3M8 11.4h.01" />
+    </>,
+    { size: 12, ...p },
+  );
+
+const ArrowIcon = (d: string) => (p?: IconProps) => svg(<path d={d} />, { size: 13, ...p });
+export const EditIcon = (p?: IconProps) => PencilIcon({ size: 13, ...p });
+export const ArchiveIcon = (p?: IconProps) =>
+  svg(
+    <>
+      <rect x="2" y="3" width="12" height="3.2" rx="1" />
+      <path d="M3.2 6.2v6.3a1.2 1.2 0 0 0 1.2 1.2h7.2a1.2 1.2 0 0 0 1.2-1.2V6.2M6.5 9h3" />
+    </>,
+    { size: 13, ...p },
+  );
+export const CopyIcon = (p?: IconProps) =>
+  svg(
+    <>
+      <rect x="5.2" y="5.2" width="8.3" height="8.3" rx="1.6" />
+      <path d="M10.8 5.2V3.7a1.2 1.2 0 0 0-1.2-1.2H3.7a1.2 1.2 0 0 0-1.2 1.2v5.9a1.2 1.2 0 0 0 1.2 1.2h1.5" />
+    </>,
+    { size: 13, ...p },
+  );
+export const LinkIcon = (p?: IconProps) =>
+  svg(<path d="M6.8 9.2a2.8 2.8 0 0 0 4 0l2.1-2.1a2.8 2.8 0 0 0-4-4l-.9.9M9.2 6.8a2.8 2.8 0 0 0-4 0L3.1 8.9a2.8 2.8 0 0 0 4 4l.9-.9" />, { size: 13, ...p });
+export const OpenIcon = (p?: IconProps) => svg(<path d="M9 2.5h4.5V7M13.3 2.7 7.5 8.5M11.5 9.5v2.8a1.2 1.2 0 0 1-1.2 1.2H3.7a1.2 1.2 0 0 1-1.2-1.2V5.7a1.2 1.2 0 0 1 1.2-1.2h2.8" />, { size: 13, ...p });
+export const UndoIcon = ArrowIcon("M5.5 3.5 2.8 6.2l2.7 2.7M3 6.2h6.3a3.7 3.7 0 0 1 0 7.4H7");
+export const SkipIcon = ArrowIcon("M3 11.5a5 5 0 0 1 9.2-4.3M12.6 3.8v3.6H9");
+export const UpIcon = ArrowIcon("M8 13V3M4 7l4-4 4 4");
+export const DownIcon = ArrowIcon("M8 3v10M4 9l4 4 4-4");
+export const LeftIcon = ArrowIcon("M13 8H3M7 4 3 8l4 4");
+export const SubProjectIcon = ArrowIcon("M4 3v5.5a2 2 0 0 0 2 2h7M10 7.5l3 3-3 3");
+export const StarOutlineIcon = (p?: IconProps) => svg(<path d="m8 2.2 1.7 3.6 3.9.5-2.9 2.7.7 3.9L8 11l-3.4 1.9.7-3.9-2.9-2.7 3.9-.5Z" />, { size: 13, ...p });
+
+/** Menu icons by name, so menus never fall back to emoji or text glyphs. */
+export const I = {
+  edit: () => <EditIcon />,
+  trash: () => <TrashIcon size={13} />,
+  archive: () => <ArchiveIcon />,
+  copy: () => <CopyIcon />,
+  link: () => <LinkIcon />,
+  open: () => <OpenIcon />,
+  undo: () => <UndoIcon />,
+  skip: () => <SkipIcon />,
+  up: () => <UpIcon />,
+  down: () => <DownIcon />,
+  left: () => <LeftIcon />,
+  right: () => <ArrowRightIcon />,
+  inbox: () => <InboxIcon size={13} />,
+  check: () => <CheckCircleIcon size={13} />,
+  tags: () => <HashIcon size={13} />,
+  star: () => <StarIcon />,
+  starOutline: () => <StarOutlineIcon />,
+  section: () => <SectionIcon size={13} />,
+  plus: () => <PlusIcon size={13} />,
+  folder: () => <FolderIcon size={13} />,
+  sidebar: () => <SidebarIcon size={13} />,
+  keyboard: () => <KeyboardIcon size={13} />,
+  gear: () => <GearIcon size={13} />,
+  list: () => <ListLayoutIcon size={13} />,
+  board: () => <BoardLayoutIcon size={13} />,
+  calendar: () => <CalendarLayoutIcon size={13} />,
+  import: () => <ImportIcon size={13} />,
+  flag: () => <FlagIcon size={12} />,
+  subProject: () => <SubProjectIcon />,
+  productivity: () => <CheckCircleIcon size={13} />,
+};
+export const DatabaseIcon = (p?: IconProps) =>
+  svg(
+    <>
+      <ellipse cx="8" cy="3.8" rx="5.2" ry="1.9" />
+      <path d="M2.8 3.8v8.4c0 1 2.3 1.9 5.2 1.9s5.2-.9 5.2-1.9V3.8M2.8 8c0 1 2.3 1.9 5.2 1.9s5.2-.9 5.2-1.9" />
+    </>,
+    { size: 18, ...p },
+  );
+export const BoltIcon = (p?: IconProps) => svg(<path d="M9 1.8 3.5 9.2h4l-1 5 5.5-7.4h-4Z" />, { size: 18, ...p });
+export const PageIcon = (p?: IconProps) =>
+  svg(
+    <>
+      <path d="M4 1.8h5.5L12.5 5v8a1.2 1.2 0 0 1-1.2 1.2H4.7A1.2 1.2 0 0 1 3.5 13V3a1.2 1.2 0 0 1 .5-1.2Z" />
+      <path d="M9.3 1.8V5h3.2M5.8 8.2h4.4M5.8 10.8h3" />
+    </>,
+    { size: 15, ...p },
+  );

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { dueLabel } from "../../core/dates";
 import type { View } from "../display";
 import { useApp } from "../hooks";
-import { FilterIcon, HashIcon, InboxIcon, SearchIcon, TodayIcon, UpcomingIcon } from "../icons";
+import { CheckCircleIcon, FilterIcon, FolderIcon, HashIcon, InboxIcon, SearchIcon, TodayIcon, UpcomingIcon } from "../icons";
 
 export interface PaletteAction {
   label: string;
@@ -36,11 +36,11 @@ export function CommandPalette({
       [{ kind: "today" }, "Today", <TodayIcon />],
       [{ kind: "upcoming" }, "Upcoming", <UpcomingIcon />],
       [{ kind: "browse" }, "Filters & Tags", <HashIcon />],
-      [{ kind: "completed" }, "Completed", "✓"],
+      [{ kind: "completed" }, "Completed", <CheckCircleIcon />],
     ];
     for (const [v, label, icon] of nav) if (has(label)) out.push({ label, kind: "View", icon, run: () => onNavigate(v) });
     for (const { project } of app.projectTree())
-      if (has(project.name)) out.push({ label: project.name, kind: "Project", icon: project.emoji ?? <span className={`t-${project.color}`}>#</span>, run: () => onNavigate({ kind: "project", id: project.id }) });
+      if (has(project.name)) out.push({ label: project.name, kind: "Project", icon: project.emoji ?? (app.projects.some((x) => x.parentId === project.id) ? <FolderIcon /> : <span className={`t-${project.color}`}>#</span>), run: () => onNavigate({ kind: "project", id: project.id }) });
     for (const f of app.filters()) if (has(f.name)) out.push({ label: f.name, kind: "Filter", icon: <FilterIcon />, run: () => onNavigate({ kind: "filter", id: f.id }) });
     for (const l of app.labels()) if (has(l)) out.push({ label: l, kind: "Tag", icon: <HashIcon />, run: () => onNavigate({ kind: "label", name: l }) });
     for (const a of actions) if (has(a.label)) out.push(a);
@@ -107,7 +107,18 @@ export function CommandPalette({
               </span>
             </button>
           ))}
-          {!results.length && <div className="muted small" style={{ padding: 10 }}>No matches</div>}
+          {!results.length && <div className="muted small" style={{ padding: "10px 16px" }}>No matches</div>}
+        </div>
+        <div className="palette-foot">
+          <span>
+            <kbd>↑↓</kbd>Move
+          </span>
+          <span>
+            <kbd>↵</kbd>Open
+          </span>
+          <span>
+            <kbd>esc</kbd>Close
+          </span>
         </div>
       </div>
     </div>

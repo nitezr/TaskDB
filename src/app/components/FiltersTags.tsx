@@ -4,7 +4,7 @@ import { askConfirm } from "../confirm";
 import type { SavedFilter } from "../controller";
 import { countFor, type View } from "../display";
 import { useApp } from "../hooks";
-import { FilterIcon, PencilIcon, TrashIcon } from "../icons";
+import { FilterIcon, PencilIcon, PersonIcon, TrashIcon } from "../icons";
 
 /** "p1 & (today | overdue)" → "Priority 1 · Today or Overdue", as Remit shows under each filter. */
 export function describeQuery(q: string): string {
@@ -172,7 +172,7 @@ export function FiltersTags({ onNavigate }: { onNavigate: (v: View) => void }) {
       <div className="panel-list">
         {people.map((p) => (
           <div key={p} className="clickable" onClick={() => onNavigate({ kind: "person", name: p })}>
-            <span>👤</span>
+            <span className="row-icon muted"><PersonIcon size={14} /></span>
             <div className="grow">{renaming?.kind === "person" && renaming.from === p ? renameInput : p}</div>
             <span className="actions">
               <button

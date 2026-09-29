@@ -1,6 +1,6 @@
 import type { Priority } from "../../types";
 import { useApp } from "../hooks";
-import { CalendarSmallIcon, CheckCircleIcon, CloseIcon, FolderIcon, TrashIcon } from "../icons";
+import { CalendarSmallIcon, CheckCircleIcon, CloseIcon, FlagIcon, FolderIcon, I, TrashIcon } from "../icons";
 import { anchorOf, useMenu } from "../ui";
 
 /** Floating bar for a multi-selection (Todoist's multi-select toolbar). */
@@ -29,17 +29,17 @@ export function BulkBar(p: {
         onClick={(e) =>
           menu.open(
             anchorOf(e.currentTarget),
-            ([1, 2, 3, 4] as Priority[]).map((n) => ({ label: `Priority ${n}`, icon: "⚑", onClick: () => p.onPriority(n) })),
+            ([1, 2, 3, 4] as Priority[]).map((n) => ({ label: `Priority ${n}`, icon: <I.flag />, onClick: () => p.onPriority(n) })),
           )
         }
         title="Priority (1–4)"
       >
-        <span className="bulk-flag">⚑</span> Priority
+        <FlagIcon size={12} /> Priority
       </button>
       <button
         onClick={(e) =>
           menu.open(anchorOf(e.currentTarget), [
-            { label: "Inbox", icon: "📥", onClick: () => p.onMove(null) },
+            { label: "Inbox", icon: <I.inbox />, onClick: () => p.onMove(null) },
             ...app.projectTree().map(({ project, depth }) => ({
               label: `${"   ".repeat(depth)}${project.name}`,
               icon: project.emoji ?? "#",

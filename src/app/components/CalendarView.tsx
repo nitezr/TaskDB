@@ -3,6 +3,7 @@ import { addDays, addMonths, dueDay, formatDue, hasTime, parseDue, startOfDay, t
 import type { Task, TaskFields } from "../../types";
 import type { CalendarRange } from "../display";
 import { useApp } from "../hooks";
+import { ChevronIcon, MoonIcon } from "../icons";
 import { dragProps, dropProps } from "../ui";
 
 interface Props {
@@ -72,12 +73,12 @@ export function CalendarView(p: Props) {
         : `${short(days[0]!)} – ${short(days[days.length - 1]!)}`;
   const undated = p.tasks.filter((t) => !t.due && !t.done);
 
-  const item = (t: Task, showTime = true, style?: React.CSSProperties) => {
+  const item = (t: Task, showTime = true, style?: React.CSSProperties, cls = "") => {
     const project = app.project(t.projectId);
     return (
       <div
         key={t.id}
-        className={`cal-item ${t.done ? "done" : ""} ${p.selected === t.id ? "selected" : ""}`}
+        className={`cal-item ${cls} ${t.done ? "done" : ""} ${p.selected === t.id ? "selected" : ""}`}
         title={t.title}
         style={style}
         onClick={(e) => {
@@ -110,13 +111,13 @@ export function CalendarView(p: Props) {
         <h2>{title}</h2>
         <div className="board-nav">
           <button onClick={() => step(-1)} aria-label="Previous">
-            ‹
+            <ChevronIcon size={10} className="flip" />
           </button>
           <button className="today-btn" onClick={() => setAnchor(startOfDay(new Date()))}>
             Today
           </button>
           <button onClick={() => step(1)} aria-label="Next">
-            ›
+            <ChevronIcon size={10} />
           </button>
         </div>
         <span className="grow" />
@@ -127,7 +128,7 @@ export function CalendarView(p: Props) {
             title={settings.hideSleep ? "Showing waking hours only — click to show the full day" : "Hide sleeping hours"}
             aria-label="Toggle sleeping hours"
           >
-            {settings.hideSleep ? "☾" : "☽"}
+            <MoonIcon filled={settings.hideSleep} />
           </button>
         )}
         <div className="segmented">
@@ -250,7 +251,7 @@ function HourGrid({
   days: string[];
   today: string;
   byDay: Map<string, Task[]>;
-  item: (t: Task, showTime?: boolean, style?: React.CSSProperties) => JSX.Element;
+  item: (t: Task, showTime?: boolean, style?: React.CSSProperties, cls?: string) => JSX.Element;
   moveTo: (id: string, day: string, hour?: number) => void;
   hours: number[];
   onAddOn: (day: string) => void;
@@ -310,7 +311,7 @@ function HourGrid({
                     const height = Math.max(20, ((t.duration ?? 0) / 60) * HOUR - 2);
                     const depth = ends.filter((e) => e > top + 1).length;
                     ends.push(top + height);
-                    return item(t, true, { top, height, left: 3 + depth * 14, zIndex: 1 + depth });
+                    return item(t, true, { top, height, left: 3 + depth * 14, zIndex: 1 + depth }, height >= 34 ? "tall" : "");
                   })}
                   {d === today && nowIdx >= 0 && <div className="now-line" style={{ top: nowIdx * HOUR + (now.getMinutes() / 60) * HOUR }} />}
                 </div>
