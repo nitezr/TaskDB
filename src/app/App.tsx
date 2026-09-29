@@ -7,7 +7,7 @@ import { CommandPalette, type PaletteAction } from "./components/CommandPalette"
 import { BulkBar } from "./components/BulkBar";
 import { DatePicker } from "./components/DatePicker";
 import { DetailPeek } from "./components/DetailPeek";
-import { Productivity } from "./components/Productivity";
+import { Productivity, Ring } from "./components/Productivity";
 import { changedCount, DisplayMenu } from "./components/DisplayMenu";
 import { FiltersTags } from "./components/FiltersTags";
 import { LabelsPopover } from "./components/LabelsPopover";
@@ -21,10 +21,11 @@ import { Sidebar } from "./components/Sidebar";
 import { Tour } from "./components/Tour";
 import { askConfirm, ConfirmHost } from "./confirm";
 import { type ScheduleTarget, scheduleDue } from "./controller";
-import { buildViewModel, DEFAULT_PREFS, type DisplayPrefs, sameView, type View, viewKey, viewTasks, visibleOrder } from "./display";
+import { buildViewModel, countFor, DEFAULT_PREFS, type DisplayPrefs, sameView, type View, viewKey, viewTasks, visibleOrder } from "./display";
 import { useApp } from "./hooks";
 import { actionForCombo, comboFromEvent } from "./shortcuts";
 import { type Anchor, anchorOf, type MenuEntry, playCompleteSound, Popover, useMenu } from "./ui";
+import { THEMES } from "./themes";
 import { BackIcon, CloseIcon, DisplayIcon, ForwardIcon, SearchIcon, SidebarIcon } from "./icons";
 
 interface Toast {
@@ -65,7 +66,7 @@ function Main() {
   const [completing, setCompleting] = useState<Set<string>>(new Set());
   const [quickAdd, setQuickAdd] = useState<Partial<TaskFields> | null>(null);
   const [palette, setPalette] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<"general" | "shortcuts" | "license" | null>(null);
+  const [settingsTab, setSettingsTab] = useState<"general" | "shortcuts" | "import" | "license" | null>(null);
   const [shortcuts, setShortcuts] = useState(false);
   const [paywall, setPaywall] = useState(false);
   const [projectDialog, setProjectDialog] = useState<{ id: string | null; parentId?: string | null } | null>(null);
@@ -87,6 +88,10 @@ function Main() {
     upcomingOpenEnded: layout !== "board",
   });
   const order = useMemo(() => visibleOrder(vm, collapsed, layout), [vm, collapsed, layout]);
+  // Dock badge: what's due today or overdue, as in Things. Off in Settings.
+  const badge = settings.dockBadge ? countFor({ kind: "today" }, app) : 0;
+  useEffect(() => app.platform.setBadge?.(badge), [badge, app]);
+
   const overlayOpen =
     !!quickAdd || !!picker || productivity || palette || !!settingsTab || shortcuts || paywall || !!projectDialog || !!templateFor || !!openId || !!labelsFor || (!settings.tourDone && app.phase === "ready");
 
@@ -483,6 +488,15 @@ function Main() {
         case "Enter":
           if (selected) setOpenId(selected);
           return;
+        case " ": {
+          // Things: Space adds a task next to the selected one, in the same project/section/day.
+          if (!selected) return;
+          e.preventDefault();
+          const group = vm.groups.find((g) => g.tasks.some((t) => t.id === selected));
+          const t = app.task(selected);
+          setQuickAdd({ ...vm.addDefaults, ...(group?.patch ?? {}), ...(t?.parentId ? { parentId: t.parentId } : {}) });
+          return;
+        }
         case "Escape":
           if (multi.size) setMulti(new Set());
           else setSelected(null);
@@ -598,9 +612,24 @@ function Main() {
     { label: "Switch to Board layout", kind: "Action", icon: "▥", run: () => setPrefs({ layout: "board" }) },
     { label: "Switch to Calendar layout", kind: "Action", icon: "▦", run: () => setPrefs({ layout: "calendar" }) },
     { label: "Undo", kind: "Action", icon: "↶", run: undo },
+    { label: "Productivity", kind: "Action", icon: "◔", run: () => setProductivity(true) },
+    { label: "Import from Todoist…", kind: "Action", icon: "⇣", run: () => setSettingsTab("import") },
+    ...THEMES.map((t) => ({
+      label: `Theme: ${t.name}`,
+      kind: "Appearance",
+      icon: <span className="dot" style={{ background: t.accent }} />,
+      run: () => app.updateSettings({ palette: t.id, accent: t.accent }),
+    })),
   ];
 
   const project = view.kind === "project" ? app.project(view.id) : undefined;
+  // Things-style project progress: share of the project's tasks already done.
+  const progress = project
+    ? (() => {
+        const all = app.tasks().filter((t) => t.projectId === project.id);
+        return { done: all.filter((t) => t.done).length, total: all.length };
+      })()
+    : null;
   // Admit what the Display filters hide, so the sidebar count and the list never seem to disagree.
   const filtering = prefs.deadline !== DEFAULT_PREFS.deadline || prefs.priority !== DEFAULT_PREFS.priority || prefs.label !== DEFAULT_PREFS.label;
   const hiddenByFilters = filtering
@@ -639,10 +668,18 @@ function Main() {
             <ForwardIcon />
           </button>
           <div className="window-title" data-tauri-drag-region>
-            <b data-tauri-drag-region>{vm.title}</b>
+            <b data-tauri-drag-region>
+              {vm.title}
+              {progress && progress.total > 0 && (
+                <span className="title-progress" title={`${progress.done} of ${progress.total} tasks done`}>
+                  <Ring value={progress.done} goal={progress.total} size={13} stroke={2} />
+                </span>
+              )}
+            </b>
             <span data-tauri-drag-region>
               {view.kind !== "browse" && `${vm.count} task${vm.count === 1 ? "" : "s"}`}
               {hiddenByFilters > 0 ? ` · ${hiddenByFilters} hidden by filters` : ""}
+              {progress && progress.total > 0 ? ` · ${Math.round((progress.done / progress.total) * 100)}% done` : ""}
               {vm.subtitle ? ` · ${vm.subtitle}` : ""}
             </span>
           </div>

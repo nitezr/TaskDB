@@ -1,5 +1,6 @@
 import { addDays, dayHeading, dueDay, parseDue, startOfDay, toDateStr } from "../core/dates";
 import { applyFilter, FilterSyntaxError } from "../core/filters";
+import { nextDue } from "../core/recurrence";
 import type { Priority, Task, TaskFields } from "../types";
 import type { AppController } from "./controller";
 
@@ -90,6 +91,8 @@ export interface Group {
   overdue?: boolean;
   /** Project sections can be renamed and reordered. */
   section?: { projectId: string; name: string | null };
+  /** Upcoming only: future rounds of repeating tasks that land on this day (Things), read-only. */
+  repeats?: Task[];
   /** Slim "Nothing until 12 Oct" line shown above a day that follows empty days (Upcoming). */
   gap?: string;
 }
@@ -326,6 +329,18 @@ function groupByDate(tasks: Task[], now: Date, opts: BuildOptions, upcoming: boo
       const later = [...new Set(tasks.filter((t) => t.due && dueDay(t.due) > last).map((t) => dueDay(t.due!)))].sort();
       shown.push(...later);
     }
+    // Where each repeating task will land next within the fixed days ("every!" can't be known).
+    const windowEnd = toDateStr(addDays(start, days - 1));
+    const repeatsOn = new Map<string, Task[]>();
+    for (const t of tasks) {
+      if (!t.recurrence || !t.due || t.done || t.recurrence.startsWith("every!")) continue;
+      let cur: string | null = t.due;
+      for (let n = 0; n < 60 && cur; n++) {
+        cur = nextDue(t.recurrence, cur, parseDue(cur));
+        if (!cur || dueDay(cur) > windowEnd) break;
+        if (dueDay(cur) >= today) repeatsOn.set(dueDay(cur), [...(repeatsOn.get(dueDay(cur)) ?? []), t]);
+      }
+    }
     shown.forEach((day, i) => {
       const prev = shown[i - 1];
       const d = parseDue(day);
@@ -337,6 +352,7 @@ function groupByDate(tasks: Task[], now: Date, opts: BuildOptions, upcoming: boo
         tasks: tasks.filter((t) => t.due && dueDay(t.due) === day),
         patch: { due: day },
         gap,
+        repeats: repeatsOn.get(day),
       });
     });
     return groups;

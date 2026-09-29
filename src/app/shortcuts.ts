@@ -61,6 +61,7 @@ export const FIXED_BINDINGS: { group: ActionGroup; keys: string; title: string }
   { group: "Navigation", keys: "⌘[ ⌘]", title: "Back / forward" },
   { group: "Navigation", keys: "G then I / T / U / F", title: "Go to Inbox / Today / Upcoming / Filters & Tags" },
   { group: "Tasks", keys: "↩", title: "Open task detail" },
+  { group: "Tasks", keys: "Space", title: "Add a task next to the selected one" },
   { group: "Tasks", keys: "⌘⌫", title: "Delete task" },
   { group: "Tasks", keys: "⌘D", title: "Duplicate task" },
   { group: "Tasks", keys: "⌥↑ ⌥↓", title: "Move task up / down" },

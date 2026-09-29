@@ -196,6 +196,13 @@ function GroupBlock({
         {nodes.map((n) => (
           <Rows key={n.task.id} node={n} depth={0} ctx={ctx} group={group} />
         ))}
+        {group.repeats?.map((t) => (
+          <div key={`r-${t.id}`} className="repeat-row" title={`${t.recurrence} — appears here once the current one is done`} onClick={() => ctx.onSelect(t.id)}>
+            <span className="repeat-check" />
+            <span className="grow">{t.title}</span>
+            <span className="repeat-rule">↻ {t.recurrence}</span>
+          </div>
+        ))}
       </div>
       {group.patch !== null &&
         vm.title !== "Completed" &&

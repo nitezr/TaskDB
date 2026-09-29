@@ -17,6 +17,8 @@ export interface Platform {
   /** Global hotkey + tray "Quick add" both call this. */
   onQuickAdd(cb: () => void): Promise<void>;
   onFocusChange(cb: (focused: boolean) => void): void;
+  /** Dock badge; 0 clears it. Optional: the browser demo has no Dock. */
+  setBadge?(count: number): void;
 }
 
 export type SecureItem = "notion-token" | "license" | "trial-start";
@@ -94,6 +96,9 @@ export async function tauriPlatform(): Promise<Platform> {
     },
     onFocusChange(cb) {
       void win.onFocusChanged(({ payload }) => cb(payload));
+    },
+    setBadge(count) {
+      void win.setBadgeCount(count > 0 ? count : undefined).catch(() => undefined);
     },
   };
 }

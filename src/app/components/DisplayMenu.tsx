@@ -122,7 +122,7 @@ export function DisplayMenu({
       <h4>Filter</h4>
       <div className="field">
         <span>
-          Deadline
+          Due date
           <Changed on={prefs.deadline !== "all"} />
         </span>
         <select value={prefs.deadline} onChange={(e) => onChange({ deadline: e.target.value as Deadline })}>

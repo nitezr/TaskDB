@@ -4,6 +4,7 @@ import type { Task } from "../types";
 /**
  * Todoist-style filter queries:
  *   today | tomorrow | overdue | no date | recurring | 7 days
+ *   deadline | no deadline | deadline today | deadline 7 days | missed deadline
  *   p1..p4 | #Project | @label | no label | +Person | "search text"
  * combined with & (and), | (or), ! (not) and parentheses.
  */
@@ -92,6 +93,7 @@ function matchAtom(text: string, task: Task, ctx: FilterContext): boolean {
   const today = toDateStr(now);
   const day = task.due ? dueDay(task.due) : null;
   const t = text.toLowerCase();
+  let m0: RegExpMatchArray | null;
 
   if (t.startsWith('"')) return task.title.toLowerCase().includes(t.slice(1, -1));
   if (t === "today") return day === today;
@@ -99,6 +101,14 @@ function matchAtom(text: string, task: Task, ctx: FilterContext): boolean {
   if (t === "overdue") return day !== null && day < today;
   if (t === "no date") return day === null;
   if (t === "recurring") return Boolean(task.recurrence);
+  const dl = task.deadline ? dueDay(task.deadline) : null;
+  if (t === "deadline" || t === "has deadline") return dl !== null;
+  if (t === "no deadline") return dl === null;
+  if (t === "deadline today") return dl === today;
+  if (t === "missed deadline" || t === "deadline overdue") return dl !== null && dl < today;
+  if ((m0 = t.match(/^deadline\s+(?:next\s+)?(\d+)\s+days?$/))) {
+    return dl !== null && dl >= today && dl <= toDateStr(addDays(startOfDay(now), Number(m0[1])));
+  }
   if (t === "no label" || t === "no labels") return task.labels.length === 0;
   if (t === "no person") return !task.person;
   if (t === "sub-task" || t === "subtask") return task.parentId !== null;

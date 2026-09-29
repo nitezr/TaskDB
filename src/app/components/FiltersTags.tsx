@@ -267,6 +267,7 @@ function FilterEditor({ filter, onSave, onClose }: { filter: SavedFilter; onSave
   const app = useApp();
   const [name, setName] = useState(filter.name);
   const [deadline, setDeadline] = useState("any");
+  const [hardDeadline, setHardDeadline] = useState("any");
   const [priority, setPriority] = useState("any");
   const [label, setLabel] = useState("any");
   const [project, setProject] = useState("any");
@@ -276,6 +277,7 @@ function FilterEditor({ filter, onSave, onClose }: { filter: SavedFilter; onSave
   const tok = (s: string) => s.replace(/\s+/g, "_");
   const built = [
     deadline === "overdue" ? "overdue" : deadline === "today" ? "(today | overdue)" : deadline === "week" ? "7 days" : deadline === "none" ? "no date" : "",
+    hardDeadline !== "any" ? hardDeadline : "",
     priority !== "any" ? `p${priority}` : "",
     label !== "any" ? `@${tok(label)}` : "",
     project !== "any" ? `#${tok(app.projectName(project) ?? "")}` : "",
@@ -323,12 +325,22 @@ function FilterEditor({ filter, onSave, onClose }: { filter: SavedFilter; onSave
           <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Waiting on others" />
         </div>
         <div className="field">
-          Deadline
+          Due date
           {select(deadline, setDeadline, [
             ["overdue", "Overdue"],
             ["today", "Today & overdue"],
             ["week", "Next 7 days"],
             ["none", "No date"],
+          ])}
+        </div>
+        <div className="field">
+          Deadline
+          {select(hardDeadline, setHardDeadline, [
+            ["deadline", "Has a deadline"],
+            ["deadline today", "Due today"],
+            ["deadline 7 days", "Within 7 days"],
+            ["missed deadline", "Missed"],
+            ["no deadline", "No deadline"],
           ])}
         </div>
         <div className="field">
@@ -352,7 +364,7 @@ function FilterEditor({ filter, onSave, onClose }: { filter: SavedFilter; onSave
           <input className={error ? "invalid" : ""} value={query} onChange={(e) => setAdvanced(e.target.value)} placeholder="p1 & (today | overdue)" />
         </div>
         <p className="small muted" style={{ margin: "4px 0" }}>
-          Query terms: today, tomorrow, overdue, no date, 7 days, recurring, p1–p4, #project, @tag, +person, "text". Combine with &amp; | ! ( ).
+          Query terms: today, tomorrow, overdue, no date, 7 days, recurring, deadline, missed deadline, p1–p4, #project, @tag, +person, "text". Combine with &amp; | ! ( ).
         </p>
         {error && <p className="small error-text">{error}</p>}
         {!error && query.trim() && (

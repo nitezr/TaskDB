@@ -1,5 +1,6 @@
 import { dueDay, hasTime, parseDue, toDateStr, toLocalIso } from "../core/dates";
 import { parseQuickAdd } from "../core/quickAdd";
+import type { ImportedProject } from "../core/todoistCsv";
 import { nextDue } from "../core/recurrence";
 import { NotionClient } from "../notion/client";
 import { type Project, ProjectsApi } from "../notion/projects";
@@ -379,6 +380,41 @@ export class AppController {
         this.updateTask(sub.id, { done: true, completedAt });
       }
     }, `Completed “${task.title}”`);
+  }
+
+  /**
+   * Creates a project (or reuses one with the same name) and every task from a Todoist export.
+   * Tasks sync to Notion in the background at the usual pace; the UI has them at once.
+   */
+  async importProject(data: ImportedProject): Promise<number> {
+    if (!this.guard()) return 0;
+    let project = this.projects.find((p) => !p.archived && p.name.toLowerCase() === data.name.toLowerCase());
+    if (!project) project = await this.addProject({ name: data.name, sections: data.sections });
+    else {
+      const missing = data.sections.filter((n) => !project!.sections.includes(n));
+      if (missing.length) await this.updateProject(project.id, { sections: [...project.sections, ...missing] });
+    }
+    const ids: string[] = [];
+    this.transaction(() => {
+      data.tasks.forEach((t, i) => {
+        const created = this.createTask({
+          title: t.title,
+          notes: t.notes,
+          priority: t.priority,
+          labels: t.labels,
+          due: t.due,
+          recurrence: t.recurrence,
+          deadline: t.deadline,
+          duration: t.duration,
+          section: t.section,
+          projectId: project!.id,
+          parentId: t.parent !== null ? (ids[t.parent] ?? null) : null,
+          order: i + 1,
+        });
+        ids.push(created?.id ?? "");
+      });
+    }, `Imported ${data.name}`);
+    return ids.filter(Boolean).length;
   }
 
   /** Moves a repeating task to its next date without counting it as done. */

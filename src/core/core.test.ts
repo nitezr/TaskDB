@@ -176,3 +176,16 @@ describe("Todoist-style repeat rules", () => {
     expect(nextDue("every week until 30 Oct 2026", "2026-09-26", NOW)).toBe("2026-10-03");
   });
 });
+
+describe("deadline filters", () => {
+  const task = (deadline: string | null): Task => ({ ...DEFAULT_FIELDS, id: "x", notionId: null, remoteEditedAt: null, syncError: null, title: "T", deadline });
+  const ctx = { now: NOW, projectName: () => null };
+  it("matches deadline terms", () => {
+    const tasks = [task("2026-09-25"), task("2026-09-26"), task("2026-09-30"), task(null)];
+    expect(applyFilter("deadline", tasks, ctx).length).toBe(3);
+    expect(applyFilter("no deadline", tasks, ctx).length).toBe(1);
+    expect(applyFilter("deadline today", tasks, ctx).length).toBe(1);
+    expect(applyFilter("missed deadline", tasks, ctx).length).toBe(1);
+    expect(applyFilter("deadline 7 days", tasks, ctx).length).toBe(2);
+  });
+});

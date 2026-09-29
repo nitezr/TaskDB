@@ -235,3 +235,11 @@ export const SubtaskIcon = (p?: IconProps) =>
     </>,
     { size: 10, ...p },
   );
+export const ImportIcon = (p?: IconProps) =>
+  svg(
+    <>
+      <path d="M8 2.5v7.5M5 7.2 8 10.2l3-3" />
+      <path d="M2.8 10.5v1.8a1.2 1.2 0 0 0 1.2 1.2h8a1.2 1.2 0 0 0 1.2-1.2v-1.8" />
+    </>,
+    p,
+  );

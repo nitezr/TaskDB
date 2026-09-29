@@ -14,16 +14,18 @@ import {
 } from "../shortcuts";
 import { LicenseSettings } from "./License";
 import { THEMES } from "../themes";
-import { CloseIcon, GearIcon, KeyboardIcon, KeyIcon, ResetIcon, SyncIcon } from "../icons";
+import { parseTodoistCsv, projectNameFromFile } from "../../core/todoistCsv";
+import { CloseIcon, GearIcon, ImportIcon, KeyboardIcon, KeyIcon, ResetIcon, SyncIcon } from "../icons";
 
 const ACCENTS = ["#dc4c3e", "#246fe0", "#058527", "#8b5cf6", "#eb8909", "#e05194", "#14b8a6", "#475569"];
-type Tab = "general" | "shortcuts" | "notion" | "license";
+type Tab = "general" | "shortcuts" | "import" | "notion" | "license";
 
 export function SettingsWindow({ onClose, onBuy, initialTab = "general" }: { onClose: () => void; onBuy: () => void; initialTab?: Tab }) {
   const [tab, setTab] = useState<Tab>(initialTab);
   const tabs: [Tab, string, React.ReactNode][] = [
     ["general", "General", <GearIcon />],
     ["shortcuts", "Shortcuts", <KeyboardIcon />],
+    ["import", "Import", <ImportIcon />],
     ["notion", "Notion sync", <SyncIcon />],
     ["license", "License", <KeyIcon />],
   ];
@@ -49,6 +51,7 @@ export function SettingsWindow({ onClose, onBuy, initialTab = "general" }: { onC
           <div className="settings-pane">
             {tab === "general" && <General />}
             {tab === "shortcuts" && <Shortcuts />}
+            {tab === "import" && <ImportTab />}
             {tab === "notion" && <NotionTab />}
             {tab === "license" && (
               <>
@@ -185,6 +188,10 @@ function General() {
 
       <h4>Feedback</h4>
       <label className="field">
+        Show the Today count on the Dock icon
+        <input type="checkbox" checked={s.dockBadge} onChange={(e) => app.updateSettings({ dockBadge: e.target.checked })} />
+      </label>
+      <label className="field">
         Play a sound when completing a task
         <input type="checkbox" checked={s.completionSound} onChange={(e) => app.updateSettings({ completionSound: e.target.checked })} />
       </label>
@@ -307,6 +314,86 @@ function Shortcuts() {
           Reset All
         </button>
       </div>
+    </>
+  );
+}
+
+/** Todoist CSV import: each exported project becomes a TaskDB project, in Notion. */
+function ImportTab() {
+  const app = useApp();
+  const [files, setFiles] = useState<{ name: string; text: string }[]>([]);
+  const [flip, setFlip] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState<string | null>(null);
+  const projects = files.map((f) => parseTodoistCsv(f.text, projectNameFromFile(f.name), { apiPriorities: flip }));
+  const total = projects.reduce((n, p) => n + p.tasks.length, 0);
+
+  const pick = async (list: FileList | null) => {
+    if (!list) return;
+    setDone(null);
+    setFiles(await Promise.all(Array.from(list).map(async (f) => ({ name: f.name, text: await f.text() }))));
+  };
+
+  const run = async () => {
+    setBusy(true);
+    let n = 0;
+    try {
+      for (const p of projects) n += await app.importProject(p);
+      // Notion takes ~2.5 writes a second; say roughly how long the background sync needs.
+      const minutes = Math.max(1, Math.round(n / 2.5 / 60));
+      setDone(`Imported ${n} task${n === 1 ? "" : "s"} into ${projects.length} project${projects.length === 1 ? "" : "s"}. They're usable now and finish syncing to Notion in about ${minutes} minute${minutes === 1 ? "" : "s"}.`);
+      setFiles([]);
+    } catch (e) {
+      setDone(`Import stopped: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <h2>Import</h2>
+      <h4>From Todoist</h4>
+      <ol className="steps-list">
+        <li>In Todoist, open a project and choose ⋯ → Export as a template → Export as CSV file.</li>
+        <li>Repeat for each project you want to bring over.</li>
+        <li>Choose the files here. Each becomes a TaskDB project with its sections, sub-tasks, dates, repeats, priorities, labels and descriptions.</li>
+      </ol>
+      <label className="file-pick">
+        <input type="file" accept=".csv,text/csv" multiple onChange={(e) => void pick(e.target.files)} />
+        <span className="primary-outline">Choose CSV files…</span>
+      </label>
+      {projects.length > 0 && (
+        <>
+          <div className="import-list">
+            {projects.map((p, i) => (
+              <div key={i} className="import-row">
+                <b>{p.name}</b>
+                <span className="muted small">
+                  {p.tasks.length} task{p.tasks.length === 1 ? "" : "s"}
+                  {p.sections.length ? ` · ${p.sections.length} section${p.sections.length === 1 ? "" : "s"}` : ""}
+                  {app.projects.some((x) => x.name.toLowerCase() === p.name.toLowerCase()) ? " · adds to the existing project" : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+          <label className="field">
+            Priorities look reversed (older exports)
+            <input type="checkbox" checked={flip} onChange={(e) => setFlip(e.target.checked)} />
+          </label>
+          <div className="row" style={{ marginTop: 12 }}>
+            <span className="grow" />
+            <button className="ghost" onClick={() => setFiles([])}>
+              Clear
+            </button>
+            <button className="primary" disabled={busy || !total} onClick={() => void run()}>
+              {busy ? "Importing…" : `Import ${total} task${total === 1 ? "" : "s"}`}
+            </button>
+          </div>
+        </>
+      )}
+      {done && <p className="banner info">{done}</p>}
+      <p className="caption">Completed tasks aren't included in Todoist exports. Nothing is deleted in Todoist.</p>
     </>
   );
 }
