@@ -13,6 +13,7 @@ import {
   FIXED_BINDINGS,
 } from "../shortcuts";
 import { LicenseSettings } from "./License";
+import { THEMES } from "../themes";
 import { CloseIcon, GearIcon, KeyboardIcon, KeyIcon, ResetIcon, SyncIcon } from "../icons";
 
 const ACCENTS = ["#dc4c3e", "#246fe0", "#058527", "#8b5cf6", "#eb8909", "#e05194", "#14b8a6", "#475569"];
@@ -85,8 +86,28 @@ function General() {
     <>
       <h2>General</h2>
       <h4>Appearance</h4>
+      <div className="theme-grid">
+        {THEMES.map((t) => (
+          <button
+            key={t.id}
+            className={`theme-card ${s.palette === t.id ? "on" : ""}`}
+            onClick={() => app.updateSettings({ palette: t.id, accent: t.accent })}
+            title={t.name}
+          >
+            <span className="theme-preview" style={{ background: t.light.page ?? "#faf9f7" }}>
+              <span className="tp-side" style={{ background: t.light.sidebar ?? "#f3f1ee" }}>
+                <i style={{ background: t.accent }} />
+              </span>
+              <span className="tp-dark" style={{ background: t.dark.page ?? "#1f1f1f" }}>
+                <i style={{ background: t.accent }} />
+              </span>
+            </span>
+            <span className="theme-name">{t.name}</span>
+          </button>
+        ))}
+      </div>
       <div className="field">
-        Theme
+        Mode
         <div className="segmented">
           {(["system", "light", "dark"] as const).map((t) => (
             <button key={t} className={s.theme === t ? "on" : ""} onClick={() => app.updateSettings({ theme: t })}>
@@ -121,7 +142,36 @@ function General() {
         </p>
       </div>
 
+      <div className="field">
+        Density
+        <div className="segmented">
+          {(["comfortable", "compact"] as const).map((d) => (
+            <button key={d} className={s.density === d ? "on" : ""} onClick={() => app.updateSettings({ density: d })}>
+              {d === "comfortable" ? "Comfortable" : "Compact"}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <h4>Time-based views</h4>
+      <div className="field">
+        Open TaskDB on
+        <select value={s.startView} onChange={(e) => app.updateSettings({ startView: e.target.value as typeof s.startView })}>
+          <option value="today">Today</option>
+          <option value="inbox">Inbox</option>
+          <option value="upcoming">Upcoming</option>
+        </select>
+      </div>
+      <div className="field">
+        Week starts on
+        <div className="segmented">
+          {([0, 1] as const).map((d) => (
+            <button key={d} className={s.weekStart === d ? "on" : ""} onClick={() => app.updateSettings({ weekStart: d })}>
+              {d === 0 ? "Sunday" : "Monday"}
+            </button>
+          ))}
+        </div>
+      </div>
       <label className="field">
         Hide sleeping hours in calendar day and week views
         <input type="checkbox" checked={s.hideSleep} onChange={(e) => app.updateSettings({ hideSleep: e.target.checked })} />

@@ -17,6 +17,8 @@ export const P = {
   completedAt: "Completed at",
   notes: "Notes",
   section: "Section",
+  deadline: "Deadline",
+  duration: "Duration (min)",
 } as const satisfies Record<keyof TaskFields, string>;
 
 const text = (s: string) => [{ type: "text", text: { content: s } }];
@@ -50,6 +52,7 @@ export function toProperties(
       case "due":
       case "reminder":
       case "completedAt":
+      case "deadline":
         out[name] = { date: date(value) };
         break;
       case "priority":
@@ -71,6 +74,7 @@ export function toProperties(
         out[name] = { select: select(value) };
         break;
       case "order":
+      case "duration":
         out[name] = { number: value };
         break;
       case "projectId":
@@ -117,5 +121,7 @@ export function fromPage(page: NotionPage): TaskFields {
     completedAt: p[P.completedAt]?.date?.start ?? null,
     notes: plain(p[P.notes]?.rich_text) || null,
     section: p[P.section]?.select?.name ?? null,
+    deadline: p[P.deadline]?.date?.start ?? null,
+    duration: p[P.duration]?.number ?? null,
   };
 }

@@ -1,5 +1,5 @@
 import { addDays, addMonths, formatDue, startOfDay } from "./dates";
-import { formatRule, parseRule } from "./recurrence";
+import { firstOccurrence, formatRule, parseRule } from "./recurrence";
 import type { Priority } from "../types";
 
 export interface QuickAddResult {
@@ -11,17 +11,24 @@ export interface QuickAddResult {
   labels: string[];
   person: string | null;
   recurrence: string | null;
+  /** From Todoist's "/Section" syntax. */
+  section: string | null;
+  /** From Todoist's "{friday}" syntax. */
+  deadline: string | null;
+  /** Minutes, from "for 30 min" / "for 1.5h". */
+  duration: number | null;
   /** Character ranges recognised as tokens, for highlighting in the input. */
   tokens: { start: number; end: number; kind: TokenKind }[];
 }
 
-export type TokenKind = "date" | "priority" | "project" | "label" | "person" | "recurrence";
+export type TokenKind = "date" | "priority" | "project" | "section" | "label" | "person" | "recurrence" | "deadline" | "duration";
 
 export interface QuickAddContext {
   now?: Date;
   projects?: string[];
   people?: string[];
   labels?: string[];
+  sections?: string[];
 }
 
 const MONTHS: Record<string, number> = {
@@ -71,6 +78,9 @@ export function parseQuickAdd(input: string, ctx: QuickAddContext = {}): QuickAd
     labels: [],
     person: null,
     recurrence: null,
+    section: null,
+    deadline: null,
+    duration: null,
     tokens: [],
   };
   const taken: [number, number][] = [];
@@ -94,11 +104,26 @@ export function parseQuickAdd(input: string, ctx: QuickAddContext = {}): QuickAd
   const B = String.raw`(?<=^|\s)`;
   const E = String.raw`(?=$|\s)`;
 
+  // Deadline in braces, parsed as a date on its own: "{fri}", "{oct 5}", "{in 2 weeks}".
+  scan(/\{([^}]+)\}/g, "deadline", (m) => {
+    const inner = parseQuickAdd(m[1]!, { now });
+    if (!inner.due || inner.title) return false;
+    out.deadline = inner.due.slice(0, 10);
+  });
+  scan(new RegExp(`${B}for\\s+(\\d+(?:\\.\\d+)?)\\s*(m|mins?|minutes?|h|hrs?|hours?)${E}`, "gi"), "duration", (m) => {
+    const n = Number(m[1]);
+    const minutes = Math.round(/^h/i.test(m[2]!) ? n * 60 : n);
+    if (!minutes || minutes > 24 * 60) return false;
+    out.duration = minutes;
+  });
   scan(new RegExp(`${B}p([1-4])${E}`, "gi"), "priority", (m) => {
     out.priority = Number(m[1]) as Priority;
   });
   scan(new RegExp(`${B}#([^\\s#@+]+)`, "g"), "project", (m) => {
     out.project = matchKnown(m[1]!, ctx.projects);
+  });
+  scan(new RegExp(`${B}/([^\\s#@+/]+)`, "g"), "section", (m) => {
+    out.section = matchKnown(m[1]!, ctx.sections);
   });
   scan(new RegExp(`${B}@([^\\s#@+]+)`, "g"), "label", (m) => {
     const label = matchKnown(m[1]!, ctx.labels);
@@ -110,17 +135,25 @@ export function parseQuickAdd(input: string, ctx: QuickAddContext = {}): QuickAd
 
   // Recurrence: "every ..." up to the next token or a time.
   let recurTime: [string | undefined, string | undefined, string | undefined] | null = null;
+  const ORD = String.raw`\d{1,2}(?:st|nd|rd|th)`;
+  const PATTERN = [
+    String.raw`(?:\d+\s+)?(?:days?|weeks?|months?|years?)`,
+    String.raw`weekday|workday|other\s+(?:day|week|month)`,
+    String.raw`last\s+day`,
+    String.raw`(?:1st|2nd|3rd|4th|first|second|third|fourth|last)\s+(?:${DOW_RE})`,
+    String.raw`(?:${MONTH_RE})\s+${ORD}|(?:${MONTH_RE})\s+\d{1,2}`,
+    ORD,
+    String.raw`(?:(?:${DOW_RE})(?:\s*(?:,|and)\s*)?)+`,
+  ].join("|");
+  const END_DATE = String.raw`\d{4}-\d{2}-\d{2}|(?:${MONTH_RE})\s+\d{1,2}(?:st|nd|rd|th)?(?:\s+\d{4})?|\d{1,2}(?:st|nd|rd|th)?\s+(?:${MONTH_RE})(?:\s+\d{4})?`;
   scan(
-    new RegExp(
-      String.raw`${B}every\s+((?:\d+\s+)?(?:days?|weeks?|months?|years?)|weekday|workday|other\s+(?:day|week)|(?:(?:${DOW_RE})(?:\s*(?:,|and)\s*)?)+)(?:\s+${TIME_RE})?${E}`,
-      "gi",
-    ),
+    new RegExp(String.raw`${B}every(!)?\s+(${PATTERN})(?:\s+(?:until|ending)\s+(${END_DATE}))?(?:\s+${TIME_RE})?${E}`, "gi"),
     "recurrence",
     (m) => {
-      const rule = parseRule(m[1]!);
+      const rule = parseRule(`every${m[1] ?? ""} ${m[2]}${m[3] ? ` until ${m[3]}` : ""}`);
       if (!rule) return false;
       out.recurrence = formatRule(rule);
-      if (m[2]) recurTime = [m[2], m[3], m[4]?.toLowerCase()];
+      if (m[4]) recurTime = [m[4], m[5], m[6]?.toLowerCase()];
     },
   );
 
@@ -181,10 +214,7 @@ export function parseQuickAdd(input: string, ctx: QuickAddContext = {}): QuickAd
     out.due = formatDue(timed ?? d, hasClock);
   } else if (out.recurrence) {
     // "every mon" with no date: first occurrence from today.
-    const rule = parseRule(out.recurrence)!;
-    let d = today;
-    if (rule.unit === "days") while (!rule.days.includes(d.getDay())) d = addDays(d, 1);
-    if (rule.unit === "weekday") while (d.getDay() === 0 || d.getDay() === 6) d = addDays(d, 1);
+    const d = firstOccurrence(parseRule(out.recurrence)!, today);
     const rt = recurTime as [string | undefined, string | undefined, string | undefined] | null;
     const timed = rt ? applyTime(d, ...rt) : null;
     out.due = formatDue(timed ?? d, timed !== null);

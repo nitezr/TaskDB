@@ -1,11 +1,12 @@
-import { dueDay, dueLabel, toDateStr } from "../../core/dates";
+import { deadlineLabel, dueDay, dueLabel, formatDuration, toDateStr } from "../../core/dates";
 import type { Task } from "../../types";
 import { useApp } from "../hooks";
-import { CalendarSmallIcon, ChevronIcon } from "../icons";
+import { CalendarSmallIcon, ChevronIcon, FlagIcon, PersonIcon, SubtaskIcon } from "../icons";
 import { dragProps } from "../ui";
 
 export interface TaskItemHandlers {
-  onSelect: (id: string) => void;
+  /** `e` carries ⌘/⇧ for multi-select; `fromMenu` keeps an existing multi-selection. */
+  onSelect: (id: string, e?: React.MouseEvent, fromMenu?: boolean) => void;
   onOpen: (id: string) => void;
   onComplete: (id: string) => void;
   onContextMenu: (id: string, e: React.MouseEvent) => void;
@@ -53,20 +54,34 @@ export function TaskItem(p: Props) {
         {p.variant === "row" && <CalendarSmallIcon />}
         {task.recurrence && p.variant === "row" && <span className="recur">↻</span>}
         {dueLabel(task.due)}
+        {task.duration ? <span className="dur"> · {formatDuration(task.duration)}</span> : null}
       </span>
     </>
   );
+  const dl = task.deadline && !task.done ? deadlineLabel(task.deadline) : null;
+  const deadline = dl && (
+    <span className={`deadline ${dl.tone}`} title={`Deadline ${task.deadline}`}>
+      <FlagIcon /> {dl.text}
+    </span>
+  );
   const chips = (
     <>
+      {deadline}
+      {!task.due && task.duration ? <span className="dur">{formatDuration(task.duration)}</span> : null}
       {task.labels.map((l) => (
         <span key={l} className="tag">
           {l}
         </span>
       ))}
-      {task.person && <span className="tag person">{task.person}👤</span>}
+      {task.person && (
+        <span className="tag person">
+          <PersonIcon size={10} />
+          {task.person}
+        </span>
+      )}
       {subs.length > 0 && (
-        <span>
-          ⑂ {subs.filter((s) => s.done).length}/{subs.length}
+        <span className="subcount" title="Sub-tasks done">
+          <SubtaskIcon /> {subs.filter((s) => s.done).length}/{subs.length}
         </span>
       )}
       {task.syncError && (
@@ -92,11 +107,11 @@ export function TaskItem(p: Props) {
 
   const common = {
     "data-id": task.id,
-    onClick: () => p.onSelect(task.id),
+    onClick: (e: React.MouseEvent) => p.onSelect(task.id, e),
     onDoubleClick: () => p.onOpen(task.id),
     onContextMenu: (e: React.MouseEvent) => {
       e.preventDefault();
-      p.onSelect(task.id);
+      p.onSelect(task.id, undefined, true);
       p.onContextMenu(task.id, e);
     },
     ...dragProps(task.id),
@@ -128,7 +143,7 @@ export function TaskItem(p: Props) {
           <div className={`task-title ${task.done ? "strike" : ""}`}>{task.title}</div>
           {task.notes && <div className="task-notes">{task.notes}</div>}
           <div className="task-meta">
-            {(date || task.labels.length > 0 || task.person) && (
+            {(date || deadline || task.labels.length > 0 || task.person) && (
               <div className="meta-row">
                 {date}
                 {chips}
@@ -159,7 +174,7 @@ export function TaskItem(p: Props) {
       <div className="task-body">
         <div className={`task-title ${task.done ? "strike" : ""}`}>{task.title}</div>
         {task.notes && <div className="task-notes">{task.notes}</div>}
-        {(date || task.labels.length > 0 || task.person || subs.length > 0 || projectLabel || task.syncError || !task.notionId) && (
+        {(date || deadline || task.labels.length > 0 || task.person || subs.length > 0 || projectLabel || task.syncError || !task.notionId) && (
           <div className="task-meta">
             {date}
             {chips}

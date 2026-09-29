@@ -18,6 +18,7 @@ import {
 import { dropProps, useMenu } from "../ui";
 import type { Project } from "../../notion/projects";
 import { describeLicense } from "./License";
+import { productivityStats, Ring } from "./Productivity";
 
 interface Props {
   view: View;
@@ -25,6 +26,7 @@ interface Props {
   onQuickAdd: () => void;
   onSettings: () => void;
   onShortcuts: () => void;
+  onProductivity: () => void;
   onToggleSidebar: () => void;
   onEditProject: (id: string | null, parentId?: string | null) => void;
   onSaveTemplate: (projectId: string) => void;
@@ -55,6 +57,7 @@ export function Sidebar(p: Props) {
   const hasKids = new Set(app.projects.filter((x) => x.parentId && !x.archived).map((x) => x.parentId!));
   const filters = app.filters();
   const favorites = app.projects.filter((x) => x.favorite && !x.archived);
+  const stats = productivityStats(app);
 
   /** Parents collapse their whole subtree. */
   const hiddenByParent = (proj: Project): boolean => {
@@ -327,6 +330,11 @@ export function Sidebar(p: Props) {
           <HelpIcon /> Keyboard Shortcuts
         </button>
         <span className="grow" />
+        {settings.dailyGoal > 0 && (
+          <button className="foot-btn goal-btn" onClick={p.onProductivity} title={`${stats.today} of ${stats.dailyGoal} done today · ${stats.streak}-day streak (O)`}>
+            <Ring value={stats.today} goal={stats.dailyGoal} size={15} stroke={2.2} />
+          </button>
+        )}
         <span
           className={`sync-dot ${status.errors ? "error" : status.pending ? "busy" : ""}`}
           title={

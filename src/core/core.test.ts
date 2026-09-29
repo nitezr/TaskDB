@@ -132,3 +132,47 @@ describe("date labels", () => {
     expect(dayHeading("2026-10-01", NOW)).toBe("1 Oct · Thursday");
   });
 });
+
+describe("quick add deadlines and durations", () => {
+  const qa = (t: string) => parseQuickAdd(t, { now: NOW });
+  it("reads a {deadline} and a duration", () => {
+    const r = qa("Draft report tomorrow 9am for 45 min {oct 5}");
+    expect(r.title).toBe("Draft report");
+    expect(r.deadline).toBe("2026-10-05");
+    expect(r.duration).toBe(45);
+    expect(r.due?.startsWith("2026-09-27T09:00")).toBe(true);
+    expect(qa("Deep work for 1.5h").duration).toBe(90);
+  });
+  it("leaves braces alone when they aren't a date", () => {
+    expect(qa("Fix {config} parsing").title).toBe("Fix {config} parsing");
+  });
+});
+
+describe("Todoist-style repeat rules", () => {
+  // NOW is Saturday 26 Sep 2026, 10:00.
+  it("parses and normalises the extended forms", () => {
+    expect(parseQuickAdd("Rent every 1st", { now: NOW }).recurrence).toBe("every 1st");
+    expect(parseQuickAdd("Invoice every last day", { now: NOW }).recurrence).toBe("every last day");
+    expect(parseQuickAdd("Book club every last fri", { now: NOW }).recurrence).toBe("every last fri");
+    expect(parseQuickAdd("Anniversary every jan 15", { now: NOW }).recurrence).toBe("every jan 15");
+    expect(parseQuickAdd("Water plants every! 3 days", { now: NOW }).recurrence).toBe("every! 3 days");
+    expect(parseQuickAdd("Standup every weekday until oct 30", { now: NOW }).recurrence).toBe("every weekday until 30 Oct 2026");
+  });
+  it("starts on the first matching date", () => {
+    expect(parseQuickAdd("Rent every 1st", { now: NOW }).due).toBe("2026-10-01");
+    expect(parseQuickAdd("Review every last fri", { now: NOW }).due).toBe("2026-10-30");
+    expect(parseQuickAdd("Pay every 26th", { now: NOW }).due).toBe("2026-09-26");
+  });
+  it("steps calendar rules and completion-based rules", () => {
+    expect(nextDue("every last day", "2026-09-30", NOW)).toBe("2026-10-31");
+    expect(nextDue("every 31st", "2026-10-31", new Date(2026, 9, 31))).toBe("2026-11-30");
+    expect(nextDue("every 2nd tue", "2026-10-13", new Date(2026, 9, 13))).toBe("2026-11-10");
+    expect(nextDue("every jan 15", "2026-01-15", NOW)).toBe("2027-01-15");
+    // every! counts from today (26 Sep), not from the old due date.
+    expect(nextDue("every! 3 days", "2026-09-01", NOW)).toBe("2026-09-29");
+  });
+  it("stops after the until date", () => {
+    expect(nextDue("every week until 30 Sep 2026", "2026-09-26", NOW)).toBeNull();
+    expect(nextDue("every week until 30 Oct 2026", "2026-09-26", NOW)).toBe("2026-10-03");
+  });
+});

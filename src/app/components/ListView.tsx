@@ -12,6 +12,8 @@ import type { Task, TaskFields } from "../../types";
 
 export interface ViewCtx extends TaskItemHandlers {
   selected: string | null;
+  /** Extra tasks picked with ⌘/⇧-click or X; bulk actions apply to all of them. */
+  multi: Set<string>;
   completing: Set<string>;
   collapsed: Set<string>;
   toggleCollapse: (id: string) => void;
@@ -224,7 +226,7 @@ function Rows({ node, depth, ctx, group }: { node: TaskNode; depth: number; ctx:
         childCount={children.length}
         collapsed={collapsed}
         onToggleCollapse={() => ctx.toggleCollapse(task.id)}
-        selected={ctx.selected === task.id}
+        selected={ctx.selected === task.id || ctx.multi.has(task.id)}
         completing={ctx.completing.has(task.id)}
         showProject={ctx.showProject}
         onSelect={ctx.onSelect}

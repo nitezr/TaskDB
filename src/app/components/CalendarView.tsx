@@ -61,7 +61,7 @@ export function CalendarView(p: Props) {
     }
   };
 
-  const days = daysFor(anchor, p.range);
+  const days = daysFor(anchor, p.range, settings.weekStart);
   const short = (d: string) => parseDue(d).toLocaleDateString(undefined, { month: "short", day: "numeric" });
   /** The span actually on screen, not just the month (Remit: "Sep 29 – Oct 5"). */
   const title =
@@ -141,7 +141,7 @@ export function CalendarView(p: Props) {
 
       {p.range === "month" ? (
         <>
-          <MonthGrid anchor={anchor} today={today} byDay={byDay} item={item} moveTo={moveTo} onAddOn={p.onAddOn} onShowDay={(d) => {
+          <MonthGrid weekStart={settings.weekStart} anchor={anchor} today={today} byDay={byDay} item={item} moveTo={moveTo} onAddOn={p.onAddOn} onShowDay={(d) => {
             setAnchor(parseDue(d));
             p.onRange("day");
           }} />
@@ -167,11 +167,11 @@ export function CalendarView(p: Props) {
   );
 }
 
-function daysFor(anchor: Date, range: CalendarRange): string[] {
+function daysFor(anchor: Date, range: CalendarRange, weekStart: 0 | 1): string[] {
   if (range === "day") return [toDateStr(anchor)];
   if (range === "threeDays") return [0, 1, 2].map((i) => toDateStr(addDays(anchor, i)));
-  const sunday = addDays(anchor, -anchor.getDay());
-  return [0, 1, 2, 3, 4, 5, 6].map((i) => toDateStr(addDays(sunday, i)));
+  const first = addDays(anchor, -((anchor.getDay() - weekStart + 7) % 7));
+  return [0, 1, 2, 3, 4, 5, 6].map((i) => toDateStr(addDays(first, i)));
 }
 
 /** Sleeping hours narrow the axis; tasks timed outside it move to the All-day row. */
@@ -182,6 +182,7 @@ export function visibleHours(hide: boolean, sleepStart: number, sleepEnd: number
 }
 
 function MonthGrid({
+  weekStart,
   anchor,
   today,
   byDay,
@@ -190,6 +191,7 @@ function MonthGrid({
   onAddOn,
   onShowDay,
 }: {
+  weekStart: 0 | 1;
   anchor: Date;
   today: string;
   byDay: Map<string, Task[]>;
@@ -199,13 +201,14 @@ function MonthGrid({
   onShowDay: (day: string) => void;
 }) {
   const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
-  const start = addDays(first, -first.getDay());
-  const weeks = Math.ceil((first.getDay() + new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0).getDate()) / 7);
+  const lead = (first.getDay() - weekStart + 7) % 7;
+  const start = addDays(first, -lead);
+  const weeks = Math.ceil((lead + new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0).getDate()) / 7);
   const cells = Array.from({ length: weeks * 7 }, (_, i) => addDays(start, i));
   return (
     <>
       <div className="cal-dow">
-        {DOW.map((d) => (
+        {[...DOW.slice(weekStart), ...DOW.slice(0, weekStart)].map((d) => (
           <div key={d}>{d}</div>
         ))}
       </div>
@@ -296,15 +299,18 @@ function HourGrid({
           <div className="hour-layer" style={style}>
             <div />
             {days.map((d) => {
-              let lastTop = -Infinity;
+              // Blocks sit at their start time and are as tall as their duration; one that starts
+              // while another is still running is indented, like overlapping calendar events.
+              const ends: number[] = [];
               return (
                 <div key={d} className="hour-col">
                   {(byDay.get(d) ?? []).filter(inGrid).map((t) => {
                     const at = parseDue(t.due!);
-                    let top = hours.indexOf(at.getHours()) * HOUR + (at.getMinutes() / 60) * HOUR;
-                    if (top < lastTop + 21) top = lastTop + 21; // cascade tasks that share a time
-                    lastTop = top;
-                    return item(t, true, { top });
+                    const top = hours.indexOf(at.getHours()) * HOUR + (at.getMinutes() / 60) * HOUR;
+                    const height = Math.max(20, ((t.duration ?? 0) / 60) * HOUR - 2);
+                    const depth = ends.filter((e) => e > top + 1).length;
+                    ends.push(top + height);
+                    return item(t, true, { top, height, left: 3 + depth * 14, zIndex: 1 + depth });
                   })}
                   {d === today && nowIdx >= 0 && <div className="now-line" style={{ top: nowIdx * HOUR + (now.getMinutes() / 60) * HOUR }} />}
                 </div>

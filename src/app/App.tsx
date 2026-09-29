@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, formatDue, hasTime, parseDue, startOfDay } from "../core/dates";
-import type { Priority, TaskFields } from "../types";
+import type { Priority, Task, TaskFields } from "../types";
 import { BoardView } from "./components/BoardView";
 import { CalendarView } from "./components/CalendarView";
 import { CommandPalette, type PaletteAction } from "./components/CommandPalette";
+import { BulkBar } from "./components/BulkBar";
+import { DatePicker } from "./components/DatePicker";
 import { DetailPeek } from "./components/DetailPeek";
+import { Productivity } from "./components/Productivity";
 import { changedCount, DisplayMenu } from "./components/DisplayMenu";
 import { FiltersTags } from "./components/FiltersTags";
 import { LabelsPopover } from "./components/LabelsPopover";
 import { LicenseBanner, Paywall } from "./components/License";
-import { ListView, RESCHEDULE_TARGETS, type ViewCtx } from "./components/ListView";
+import { ListView, orderBefore, RESCHEDULE_TARGETS, type ViewCtx } from "./components/ListView";
 import { Onboarding } from "./components/Onboarding";
 import { ProjectDialog, SaveTemplateDialog } from "./components/ProjectDialogs";
 import { QuickAdd } from "./components/QuickAdd";
@@ -17,7 +20,7 @@ import { SettingsWindow, ShortcutsPanel } from "./components/SettingsWindow";
 import { Sidebar } from "./components/Sidebar";
 import { Tour } from "./components/Tour";
 import { askConfirm, ConfirmHost } from "./confirm";
-import type { ScheduleTarget } from "./controller";
+import { type ScheduleTarget, scheduleDue } from "./controller";
 import { buildViewModel, DEFAULT_PREFS, type DisplayPrefs, sameView, type View, viewKey, viewTasks, visibleOrder } from "./display";
 import { useApp } from "./hooks";
 import { actionForCombo, comboFromEvent } from "./shortcuts";
@@ -37,8 +40,10 @@ export function App() {
     const root = document.documentElement;
     root.dataset.theme = settings.theme;
     root.dataset.font = settings.font;
+    root.dataset.palette = settings.palette;
+    root.dataset.density = settings.density;
     root.style.setProperty("--accent", settings.accent);
-  }, [settings.theme, settings.accent, settings.font]);
+  }, [settings.theme, settings.accent, settings.font, settings.palette, settings.density]);
 
   if (app.phase === "loading") return <div className="loading">Loading…</div>;
   if (app.phase === "connect") return <Onboarding />;
@@ -48,10 +53,13 @@ export function App() {
 function Main() {
   const app = useApp();
   const settings = app.settings();
-  const [view, setView] = useState<View>({ kind: "today" });
+  const [view, setView] = useState<View>(() => ({ kind: settings.startView }));
   const [back, setBack] = useState<View[]>([]);
   const [forward, setForward] = useState<View[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
+  const [multi, setMulti] = useState<Set<string>>(new Set());
+  const [picker, setPicker] = useState<{ kind: "due" | "deadline"; ids: string[]; anchor: Anchor } | null>(null);
+  const [productivity, setProductivity] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [completing, setCompleting] = useState<Set<string>>(new Set());
@@ -80,7 +88,7 @@ function Main() {
   });
   const order = useMemo(() => visibleOrder(vm, collapsed, layout), [vm, collapsed, layout]);
   const overlayOpen =
-    !!quickAdd || palette || !!settingsTab || shortcuts || paywall || !!projectDialog || !!templateFor || !!openId || !!labelsFor || (!settings.tourDone && app.phase === "ready");
+    !!quickAdd || !!picker || productivity || palette || !!settingsTab || shortcuts || paywall || !!projectDialog || !!templateFor || !!openId || !!labelsFor || (!settings.tourDone && app.phase === "ready");
 
   useEffect(() => {
     app.onQuickAdd = () => setQuickAdd({});
@@ -103,6 +111,7 @@ function Main() {
       setForward([]);
       setView(v);
       setSelected(null);
+      setMulti(new Set());
       setUpcomingWeek(0);
     },
     [view],
@@ -114,6 +123,7 @@ function Main() {
     setForward((f) => [view, ...f]);
     setView(prev);
     setSelected(null);
+    setMulti(new Set());
   };
   const goForward = () => {
     const next = forward[0];
@@ -122,6 +132,7 @@ function Main() {
     setBack((b) => [...b, view]);
     setView(next);
     setSelected(null);
+    setMulti(new Set());
   };
 
   const undo = () => {
@@ -150,6 +161,111 @@ function Main() {
     }, 320);
   };
 
+  /** What an action applies to: the multi-selection if there is one, else the focused task. */
+  const targets = (): string[] => (multi.size ? [...multi] : selected ? [selected] : []);
+
+  /** ⌘-click toggles a task, ⇧-click selects the run from the focused task (Todoist, Things). */
+  const onSelect = (id: string, e?: React.MouseEvent, fromMenu?: boolean) => {
+    if (fromMenu && multi.has(id)) return;
+    if (e && (e.metaKey || e.ctrlKey)) {
+      const next = new Set(multi);
+      if (!next.size && selected && selected !== id) next.add(selected);
+      next.has(id) ? next.delete(id) : next.add(id);
+      setMulti(next);
+      setSelected(id);
+      return;
+    }
+    if (e?.shiftKey && selected) {
+      const a = order.indexOf(selected);
+      const b = order.indexOf(id);
+      if (a >= 0 && b >= 0) {
+        const next = new Set(multi);
+        for (const x of order.slice(Math.min(a, b), Math.max(a, b) + 1)) next.add(x);
+        setMulti(next);
+        setSelected(id);
+        return;
+      }
+    }
+    setMulti(new Set());
+    setSelected(id);
+  };
+
+  const completeMany = (ids: string[]) => {
+    if (ids.length === 1) return complete(ids[0]!);
+    const open = ids.filter((id) => !app.task(id)?.done);
+    if (!open.length) return;
+    if (settings.completionSound) playCompleteSound();
+    setCompleting((c) => new Set([...c, ...open]));
+    setTimeout(() => {
+      app.transaction(() => open.forEach((id) => app.complete(id)), `Completed ${open.length} tasks`);
+      setCompleting(new Set());
+      setMulti(new Set());
+      setToast({ text: `${open.length} tasks completed`, undo: true });
+    }, 320);
+  };
+
+  const updateMany = (ids: string[], patch: Partial<TaskFields>, label: string) => {
+    if (!ids.length) return;
+    app.transaction(() => ids.forEach((id) => moveTask(id, patch)), label);
+    if (ids.length > 1) setToast({ text: label, undo: true });
+  };
+
+  const deleteMany = (ids: string[]) => {
+    if (!ids.length) return;
+    const first = app.task(ids[0]!);
+    const next = order.filter((x) => !ids.includes(x))[Math.max(0, order.indexOf(ids[0]!) )] ?? null;
+    app.transaction(() => ids.forEach((id) => app.deleteTask(id)), `Deleted ${ids.length} task(s)`);
+    setMulti(new Set());
+    setSelected(next);
+    setToast({ text: ids.length === 1 ? `Deleted “${first?.title ?? "task"}”` : `Deleted ${ids.length} tasks`, undo: true });
+  };
+
+  /** Copies the task and its sub-tasks, right after the original (⌘D, as in Things). */
+  const duplicate = (id: string) => {
+    const t = app.task(id);
+    if (!t) return;
+    let copyId: string | null = null;
+    app.transaction(() => {
+      const copy = app.createTask({ ...stripTask(t), order: t.order + 0.5 });
+      copyId = copy?.id ?? null;
+      if (!copy) return;
+      for (const sub of app.tasks().filter((x) => x.parentId === id)) app.createTask({ ...stripTask(sub), parentId: copy.id });
+    }, `Duplicated “${t.title}”`);
+    if (copyId) setSelected(copyId);
+    setToast({ text: `Duplicated “${t.title}”`, undo: true });
+  };
+
+  const notionUrl = (id: string) => {
+    const nid = app.task(id)?.notionId;
+    return nid ? `https://www.notion.so/${nid.replace(/-/g, "")}` : null;
+  };
+  const copyLink = (id: string) => {
+    const url = notionUrl(id);
+    if (!url) return setToast({ text: "This task hasn't reached Notion yet — try again in a moment" });
+    void navigator.clipboard?.writeText(url).then(() => setToast({ text: "Link to the Notion page copied" }));
+  };
+
+  /** ⌥↑ / ⌥↓: move within its group. Reordering switches the view to manual order, like Todoist. */
+  const shiftTask = (id: string, dir: -1 | 1) => {
+    const group = vm.groups.find((g) => g.tasks.some((t) => t.id === id));
+    const t = app.task(id);
+    if (!group || !t || group.patch === null) return;
+    const siblings = group.tasks.filter((x) => x.parentId === t.parentId);
+    const i = siblings.findIndex((x) => x.id === id);
+    const j = i + dir;
+    if (j < 0 || j >= siblings.length) return;
+    const rest = siblings.filter((x) => x.id !== id);
+    const before = dir < 0 ? siblings[j]! : (siblings[j + 1] ?? null);
+    if (prefs.sorting !== "manual") setPrefs({ sorting: "manual" });
+    app.updateTask(id, { order: orderBefore(rest, before) });
+  };
+
+  const openPicker = (kind: "due" | "deadline", ids: string[]) => {
+    if (!ids.length) return;
+    const el = document.querySelector(`[data-id="${CSS.escape(ids[ids.length - 1]!)}"]`);
+    setPicker({ kind, ids, anchor: el ? anchorOf(el) : { x: window.innerWidth / 2 - 130, y: 140 } });
+  };
+
   const reschedule = (ids: string[], target: ScheduleTarget) => {
     if (!ids.length) return;
     app.schedule(ids, target);
@@ -174,42 +290,82 @@ function Main() {
   const openTaskMenu = (id: string, e: React.MouseEvent) => {
     const t = app.task(id);
     if (!t) return;
+    const at = { x: e.clientX, y: e.clientY };
+    // Right-clicking inside a multi-selection acts on all of it.
+    const ids = multi.has(id) && multi.size > 1 ? [...multi] : [id];
+    const many = ids.length > 1;
     const sections = t.projectId ? app.sections(t.projectId) : [];
+    const today = startOfDay(new Date());
+    const hint = (target: ScheduleTarget) => {
+      const d = scheduleDue(null, target, today);
+      return d ? parseDue(d).toLocaleDateString(undefined, { weekday: "short" }) : "";
+    };
+    const moveMenu = () =>
+      taskMenu.open(at, [
+        { heading: many ? `Move ${ids.length} tasks to` : "Move to" },
+        { label: "Inbox", icon: "📥", onClick: () => updateMany(ids, { projectId: null, section: null }, "Moved to Inbox") },
+        ...app.projectTree().map(({ project, depth }) => ({
+          label: `${"   ".repeat(depth)}${project.name}`,
+          icon: project.emoji ?? "#",
+          onClick: () => updateMany(ids, { projectId: project.id, section: null }, `Moved to ${project.name}`),
+        })),
+        ...(sections.length && !many
+          ? [
+              { heading: "Section" } as MenuEntry,
+              { label: "(No section)", onClick: () => app.updateTask(id, { section: null }) },
+              ...sections.map((s) => ({ label: s, onClick: () => app.updateTask(id, { section: s }) })),
+            ]
+          : []),
+      ]);
+    const url = notionUrl(id);
     const items: MenuEntry[] = [
-      { label: "Open details", icon: "↗", hint: "I", onClick: () => setOpenId(id) },
-      { label: t.done ? "Reopen" : "Complete", icon: "✓", hint: "E", onClick: () => complete(id) },
-      { label: "Edit tags…", icon: "⌗", hint: "L", onClick: () => setLabelsFor({ id, anchor: { x: e.clientX, y: e.clientY } }) },
-      { heading: "Schedule" },
-      ...RESCHEDULE_TARGETS.map(([target, label]) => ({ label, onClick: () => reschedule([id], target) })),
-      { heading: "Priority" },
-      ...([1, 2, 3, 4] as Priority[]).map((p) => ({ label: `Priority ${p}${t.priority === p ? " ✓" : ""}`, onClick: () => app.updateTask(id, { priority: p }) })),
-      { heading: "Move to" },
-      { label: "📥 Inbox", onClick: () => app.updateTask(id, { projectId: null, section: null }) },
-      ...app.projectTree().map(({ project, depth }) => ({
-        label: `${"  ".repeat(depth)}${project.emoji ?? "#"} ${project.name}`,
-        onClick: () => app.updateTask(id, { projectId: project.id, section: null }),
+      ...(many
+        ? [{ heading: `${ids.length} tasks selected` } as MenuEntry]
+        : [
+            { label: "Open details", icon: "↗", hint: "↩", onClick: () => setOpenId(id) },
+            { label: "Edit tags…", icon: "#", hint: "L", onClick: () => setLabelsFor({ id, anchor: at }) },
+          ]),
+      { label: t.done && !many ? "Reopen" : "Complete", icon: "✓", hint: "E", onClick: () => (t.done && !many ? complete(id) : completeMany(ids)) },
+      ...(t.recurrence && !many ? [{ label: "Skip this occurrence", icon: "↷", onClick: () => (app.skipOccurrence(id), setToast({ text: "Skipped to the next date", undo: true })) }] : []),
+      { separator: true },
+      ...RESCHEDULE_TARGETS.filter(([target]) => target !== "none").map(([target, label]) => ({ label, hint: hint(target), onClick: () => reschedule(ids, target) })),
+      { label: "Pick a date…", icon: "", hint: "S", onClick: () => setPicker({ kind: "due", ids, anchor: at }) },
+      { label: t.deadline && !many ? "Change deadline…" : "Set deadline…", hint: "D", onClick: () => setPicker({ kind: "deadline", ids, anchor: at }) },
+      ...(t.due || many ? [{ label: "Remove date", onClick: () => reschedule(ids, "none") }] : []),
+      { separator: true },
+      ...([1, 2, 3, 4] as Priority[]).map((p) => ({
+        label: `Priority ${p}`,
+        icon: !many && t.priority === p ? "✓" : "",
+        hint: String(p),
+        onClick: () => updateMany(ids, { priority: p }, `Set priority ${p}`),
       })),
-      ...(sections.length
+      { separator: true },
+      { label: "Move to…", icon: "→", onClick: () => setTimeout(moveMenu) },
+      ...(!many
         ? [
-            { heading: "Move to section" } as MenuEntry,
-            { label: "(No section)", onClick: () => app.updateTask(id, { section: null }) },
-            ...sections.map((s) => ({ label: s, onClick: () => app.updateTask(id, { section: s }) })),
+            { label: "Duplicate", icon: "⧉", hint: "⌘D", onClick: () => duplicate(id) },
+            { label: "Copy link", icon: "🔗", hint: "⌘⇧C", onClick: () => copyLink(id) },
+            ...(url ? [{ label: "Open in Notion", icon: "N", onClick: () => void app.platform.openUrl(url) }] : []),
           ]
         : []),
       { separator: true },
       {
-        label: "Delete task",
+        label: many ? `Delete ${ids.length} tasks` : "Delete task",
         icon: "🗑",
         hint: "⌘⌫",
         danger: true,
-        onClick: () => void askConfirm(`Delete “${t.title}”?`, "Delete").then((ok) => ok && app.deleteTask(id)),
+        onClick: () =>
+          void askConfirm(many ? `Delete ${ids.length} tasks?` : "Delete this task?", many ? "Delete Tasks" : "Delete Task", {
+            detail: `${many ? "They are" : `“${t.title}” is`} removed from Notion too. ⌘Z undoes it.`,
+          }).then((ok) => ok && deleteMany(ids)),
       },
     ];
-    taskMenu.open({ x: e.clientX, y: e.clientY }, items);
+    taskMenu.open(at, items);
   };
 
   const ctx: ViewCtx = {
     selected,
+    multi,
     completing,
     collapsed,
     toggleCollapse: (id) =>
@@ -219,7 +375,7 @@ function Main() {
         return n;
       }),
     showProject: view.kind !== "project" && view.kind !== "inbox",
-    onSelect: setSelected,
+    onSelect,
     onOpen: setOpenId,
     onComplete: complete,
     onContextMenu: openTaskMenu,
@@ -257,19 +413,25 @@ function Main() {
         } else if (k === "]") {
           e.preventDefault();
           goForward();
-        } else if (k === "backspace" && selected) {
+        } else if (k === "backspace" && targets().length) {
           e.preventDefault();
-          const t = app.task(selected);
-          if (t) {
-            const next = order[order.indexOf(selected) + 1] ?? order[order.indexOf(selected) - 1] ?? null;
-            app.deleteTask(selected);
-            setSelected(next);
-            setToast({ text: `Deleted “${t.title}”`, undo: true });
-          }
+          deleteMany(targets());
+        } else if (k === "d" && selected) {
+          e.preventDefault();
+          duplicate(selected);
+        } else if (k === "c" && e.shiftKey && selected) {
+          e.preventDefault();
+          copyLink(selected);
         }
         return;
       }
-      if (e.altKey) return;
+      if (e.altKey) {
+        if ((e.key === "ArrowUp" || e.key === "ArrowDown") && selected) {
+          e.preventDefault();
+          shiftTask(selected, e.key === "ArrowUp" ? -1 : 1);
+        }
+        return;
+      }
 
       if (gPressed.current) {
         gPressed.current = false;
@@ -283,6 +445,16 @@ function Main() {
       }
 
       const idx = selected ? order.indexOf(selected) : -1;
+      // ⇧↑ / ⇧↓ grow the selection one task at a time.
+      if (e.shiftKey && (e.key === "ArrowUp" || e.key === "ArrowDown") && selected) {
+        e.preventDefault();
+        const to = order[e.key === "ArrowUp" ? Math.max(0, idx - 1) : Math.min(order.length - 1, idx + 1)];
+        if (to) {
+          setMulti((m) => new Set([...m, selected, to]));
+          setSelected(to);
+        }
+        return;
+      }
       switch (e.key) {
         case "ArrowDown":
           e.preventDefault();
@@ -312,7 +484,8 @@ function Main() {
           if (selected) setOpenId(selected);
           return;
         case "Escape":
-          setSelected(null);
+          if (multi.size) setMulti(new Set());
+          else setSelected(null);
           return;
         case "g":
           gPressed.current = true;
@@ -342,7 +515,7 @@ function Main() {
           setQuickAdd(vm.addDefaults);
           break;
         case "completeTask":
-          if (sel) complete(sel.id);
+          completeMany(targets());
           break;
         case "openDetail":
           if (sel) setOpenId(sel.id);
@@ -357,22 +530,38 @@ function Main() {
         case "priority2":
         case "priority3":
         case "priority4":
-          if (sel) app.updateTask(sel.id, { priority: Number(action.slice(-1)) as Priority });
+          updateMany(targets(), { priority: Number(action.slice(-1)) as Priority }, `Set priority ${action.slice(-1)}`);
           break;
         case "scheduleToday":
-          if (sel) reschedule([sel.id], "today");
+          reschedule(targets(), "today");
           break;
         case "scheduleTomorrow":
-          if (sel) reschedule([sel.id], "tomorrow");
+          reschedule(targets(), "tomorrow");
           break;
         case "scheduleWeekend":
-          if (sel) reschedule([sel.id], "weekend");
+          reschedule(targets(), "weekend");
           break;
         case "scheduleNextWeek":
-          if (sel) reschedule([sel.id], "nextWeek");
+          reschedule(targets(), "nextWeek");
           break;
         case "scheduleClear":
-          if (sel) reschedule([sel.id], "none");
+          reschedule(targets(), "none");
+          break;
+        case "schedulePicker":
+          openPicker("due", targets());
+          break;
+        case "deadlinePicker":
+          openPicker("deadline", targets());
+          break;
+        case "toggleSelect":
+          if (sel) {
+            const next = new Set(multi);
+            next.has(sel.id) ? next.delete(sel.id) : next.add(sel.id);
+            setMulti(next);
+          }
+          break;
+        case "productivity":
+          setProductivity(true);
           break;
       }
     };
@@ -428,6 +617,7 @@ function Main() {
         onQuickAdd={() => setQuickAdd(vm.addDefaults)}
         onSettings={() => setSettingsTab("general")}
         onShortcuts={() => setShortcuts(true)}
+        onProductivity={() => setProductivity(true)}
         onEditProject={(id, parentId) => setProjectDialog({ id, parentId })}
         onSaveTemplate={setTemplateFor}
         onToast={(text) => setToast({ text })}
@@ -613,6 +803,34 @@ function Main() {
           }}
         />
       )}
+      {picker && (
+        <DatePicker
+          anchor={picker.anchor}
+          mode={picker.kind}
+          value={(() => {
+            const t = app.task(picker.ids[0]!);
+            return (picker.kind === "due" ? t?.due : t?.deadline) ?? null;
+          })()}
+          duration={picker.ids.length === 1 ? app.task(picker.ids[0]!)?.duration : undefined}
+          onDuration={picker.kind === "due" ? (m) => updateMany(picker.ids, { duration: m }, "Set duration") : undefined}
+          onChange={(v) => updateMany(picker.ids, picker.kind === "due" ? { due: v } : { deadline: v }, picker.kind === "due" ? "Rescheduled" : "Set deadline")}
+          onClose={() => setPicker(null)}
+        />
+      )}
+      {multi.size > 1 && (
+        <BulkBar
+          count={multi.size}
+          onComplete={() => completeMany([...multi])}
+          onSchedule={(e) => setPicker({ kind: "due", ids: [...multi], anchor: anchorOf(e.currentTarget) })}
+          onPriority={(p) => updateMany([...multi], { priority: p }, `Set priority ${p} on ${multi.size} tasks`)}
+          onMove={(projectId) => updateMany([...multi], { projectId, section: null }, `Moved ${multi.size} tasks`)}
+          onDelete={() =>
+            void askConfirm(`Delete ${multi.size} tasks?`, "Delete Tasks", { detail: "They are removed from Notion too. ⌘Z undoes it." }).then((ok) => ok && deleteMany([...multi]))
+          }
+          onClear={() => setMulti(new Set())}
+        />
+      )}
+      {productivity && <Productivity onClose={() => setProductivity(false)} />}
       {labelsFor && <LabelsPopover taskId={labelsFor.id} anchor={labelsFor.anchor} onClose={() => setLabelsFor(null)} />}
       {paywall && <Paywall onClose={() => setPaywall(false)} />}
       {!settings.tourDone && <Tour onClose={() => undefined} onOpenProject={(id) => navigate({ kind: "project", id })} />}
@@ -635,4 +853,10 @@ function Main() {
       <ConfirmHost />
     </div>
   );
+}
+
+/** The editable fields of a task, for copying it (⌘D). */
+function stripTask(t: Task): Partial<TaskFields> {
+  const { id: _id, notionId: _n, remoteEditedAt: _r, syncError: _s, createdAt: _c, done: _d, completedAt: _ca, ...fields } = t;
+  return fields;
 }

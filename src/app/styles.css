@@ -1290,6 +1290,13 @@ html.mac-window .sidebar {
   right: 3px;
   pointer-events: auto;
   box-sizing: border-box;
+  align-items: flex-start;
+  border-left: 2.5px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  box-shadow: 0 0 0 1px var(--page);
+  background: color-mix(in srgb, var(--accent) 14%, var(--page));
+}
+.hour-col .cal-item.selected {
+  background: color-mix(in srgb, var(--accent) 30%, var(--page));
 }
 .now-line {
   position: absolute;
@@ -2571,4 +2578,542 @@ button.keycap:hover {
 .tag-hash {
   color: #6b7280;
   font-size: 10px;
+}
+
+/* Theme picker */
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin: 8px 0 10px;
+}
+.theme-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: stretch;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.theme-card .theme-preview {
+  height: 46px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+.theme-card.on .theme-preview {
+  box-shadow: 0 0 0 2px var(--sel);
+}
+.theme-card.on {
+  color: var(--text);
+  font-weight: 600;
+}
+.tp-side {
+  width: 34%;
+  display: flex;
+  align-items: flex-start;
+  padding: 7px 6px;
+}
+.tp-side i,
+.tp-dark i {
+  display: block;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+}
+.tp-dark {
+  margin-left: auto;
+  width: 34%;
+  padding: 7px 6px;
+  display: flex;
+  align-items: flex-end;
+}
+.tp-dark i {
+  width: 60%;
+  margin-left: auto;
+}
+
+/* Compact density: tighter rows everywhere, like Things' dense lists. */
+:root[data-density="compact"] .task {
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+:root[data-density="compact"] .task-title {
+  font-size: 14px;
+}
+:root[data-density="compact"] .task-meta {
+  margin-top: 2px;
+}
+:root[data-density="compact"] .nav {
+  min-height: 25px;
+}
+:root[data-density="compact"] .card {
+  padding: 9px 11px;
+}
+:root[data-density="compact"] .column-body {
+  gap: 7px;
+}
+
+/* Deadline flag: grey countdown, orange when close, red once due (Things). */
+.deadline {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--muted);
+}
+.deadline.soon {
+  color: var(--p2);
+}
+.deadline.late {
+  color: var(--overdue);
+}
+.dur {
+  color: var(--muted);
+}
+
+/* Date picker (Todoist scheduler / Things When) */
+.date-picker {
+  width: 262px;
+  padding: 6px;
+}
+.dp-input {
+  width: 100%;
+  font-size: 13px;
+  padding: 6px 8px;
+}
+.dp-preview {
+  font-size: 11px;
+  color: var(--muted);
+  padding: 4px 8px 0;
+}
+.dp-quick {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line);
+}
+.dp-quick .menu-item {
+  font-size: 13px;
+  padding: 5px 8px;
+}
+.dp-icon {
+  width: 16px;
+  text-align: center;
+  color: var(--accent);
+}
+.dp-month {
+  padding: 6px 4px 4px;
+}
+.dp-month-head {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  padding: 0 4px 4px;
+}
+.dp-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+}
+.dp-dow {
+  font-size: 10px;
+  color: var(--muted);
+  text-align: center;
+  padding: 2px 0;
+}
+.dp-day {
+  position: relative;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.dp-day:hover {
+  background: var(--hover);
+}
+.dp-day.other,
+.dp-day.past {
+  color: var(--faint);
+}
+.dp-day.today {
+  color: var(--accent);
+  font-weight: 700;
+}
+.dp-day.on {
+  background: var(--accent);
+  color: #fff;
+}
+/* One dot per busy day; a firmer one once it's getting full. */
+.dp-day i {
+  position: absolute;
+  left: 50%;
+  bottom: 3px;
+  width: 3px;
+  height: 3px;
+  margin-left: -1.5px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.dp-day i.busy {
+  background: var(--p2);
+}
+.dp-day.on i {
+  background: #fff;
+}
+.dp-foot {
+  border-top: 1px solid var(--line);
+  padding: 6px 8px 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+.dp-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dp-row input,
+.dp-row select {
+  font-size: 12px;
+  padding: 2px 6px;
+}
+.date-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  width: 100%;
+}
+.date-btn.empty {
+  color: var(--muted);
+  border-style: dashed;
+}
+.date-btn:hover {
+  border-color: var(--muted);
+}
+
+/* Multi-select bar: a floating HUD, like Finder's and Todoist's selection toolbars. */
+.bulk-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 5px 6px 5px 14px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  box-shadow: var(--pop);
+  font-size: 13px;
+  animation: rise 0.18s ease-out;
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+}
+.bulk-bar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border-radius: 7px;
+  color: var(--text);
+}
+.bulk-bar button:hover {
+  background: var(--hover);
+}
+.bulk-bar button.danger {
+  color: var(--p1);
+}
+.bulk-count {
+  font-weight: 600;
+  margin-right: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.bulk-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--line);
+  margin: 0 4px;
+}
+.bulk-flag {
+  color: var(--p1);
+  font-size: 12px;
+}
+
+/* Progress rings */
+.ring .ring-track {
+  stroke: color-mix(in srgb, var(--muted) 25%, transparent);
+}
+.ring .ring-fill {
+  stroke: var(--accent);
+  transition: stroke-dasharray 0.4s ease-out;
+}
+.ring.full .ring-fill {
+  stroke: var(--today);
+}
+.goal-btn {
+  gap: 5px;
+  padding: 3px 6px;
+}
+.goal-num {
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Productivity */
+.productivity {
+  width: min(600px, calc(100vw - 32px));
+  padding: 18px 22px 16px;
+}
+.prod-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.prod-head h2 {
+  font-size: 17px;
+  font-weight: 600;
+}
+.prod-hero {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  padding: 22px 4px 18px;
+}
+.prod-ring {
+  position: relative;
+  width: 112px;
+  height: 112px;
+  flex-shrink: 0;
+}
+.prod-ring-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.1;
+}
+.prod-ring-label b {
+  font-size: 30px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.prod-ring-label span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.prod-copy h3 {
+  font-size: 16px;
+  font-weight: 600;
+}
+.prod-copy p {
+  font-size: 12.5px;
+  margin: 4px 0 12px;
+}
+.prod-streaks {
+  display: flex;
+  gap: 22px;
+}
+.prod-streaks div {
+  display: flex;
+  flex-direction: column;
+}
+.prod-streaks b {
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.prod-streaks span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.prod-chart {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  height: 128px;
+  padding: 0 4px 20px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+.prod-bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+}
+.prod-bar-track {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  background: linear-gradient(to top, transparent calc(var(--goal) - 1px), color-mix(in srgb, var(--muted) 45%, transparent) calc(var(--goal) - 1px), color-mix(in srgb, var(--muted) 45%, transparent) var(--goal), transparent var(--goal));
+}
+.prod-bar {
+  width: 100%;
+  min-height: 2px;
+  border-radius: 5px 5px 2px 2px;
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  position: relative;
+  transition: height 0.3s ease-out;
+}
+.prod-bar.met {
+  background: color-mix(in srgb, var(--today) 70%, transparent);
+}
+.prod-bar.now {
+  background: var(--accent);
+}
+.prod-bar.now.met {
+  background: var(--today);
+}
+.prod-bar span {
+  position: absolute;
+  top: -16px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 10.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.prod-bar-label {
+  font-size: 10.5px;
+  color: var(--muted);
+  text-align: center;
+  white-space: nowrap;
+}
+.prod-list {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.prod-list h4 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.prod-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  font-size: 13px;
+}
+.prod-item .check {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  font-size: 8px;
+}
+.prod-foot {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-top: 1px solid var(--line);
+  margin-top: 12px;
+  padding-top: 12px;
+  font-size: 12px;
+}
+.prod-foot label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+.prod-foot input[type="number"] {
+  width: 52px;
+  padding: 3px 6px;
+  font-size: 12px;
+}
+.days-off {
+  display: inline-flex;
+  gap: 3px;
+}
+.days-off button {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--chip);
+}
+.days-off button.on {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Quick add token highlighting: a mirror of the text sits under the transparent input. */
+.qa-field {
+  position: relative;
+}
+.qa-mirror {
+  position: absolute;
+  inset: 0;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 4px 0;
+  white-space: pre;
+  overflow: hidden;
+  color: transparent;
+  pointer-events: none;
+  line-height: normal;
+}
+.quick-add .qa-field .qa-input {
+  position: relative;
+}
+.tok {
+  color: transparent;
+  border-radius: 4px;
+  box-shadow: 0 0 0 1.5px var(--tok-bg);
+  background: var(--tok-bg);
+  --tok-bg: color-mix(in srgb, var(--muted) 18%, transparent);
+}
+.tok-date,
+.tok-recurrence,
+.tok-duration {
+  --tok-bg: color-mix(in srgb, var(--today) 20%, transparent);
+}
+.tok-deadline,
+.tok-priority {
+  --tok-bg: color-mix(in srgb, var(--p1) 18%, transparent);
+}
+.tok-project,
+.tok-section {
+  --tok-bg: color-mix(in srgb, var(--p3) 18%, transparent);
+}
+.tok-person {
+  --tok-bg: color-mix(in srgb, var(--p2) 20%, transparent);
+}
+.chip .ico,
+.chip-glyph {
+  opacity: 0.85;
+}
+.chip-glyph {
+  font-size: 11px;
+}
+.tag.person {
+  gap: 3px;
+}
+.subcount {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-variant-numeric: tabular-nums;
 }

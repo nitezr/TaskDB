@@ -20,7 +20,11 @@ export type ActionId =
   | "scheduleTomorrow"
   | "scheduleWeekend"
   | "scheduleNextWeek"
-  | "scheduleClear";
+  | "scheduleClear"
+  | "schedulePicker"
+  | "deadlinePicker"
+  | "toggleSelect"
+  | "productivity";
 
 export type ActionGroup = "Navigation" | "Tasks" | "Schedule";
 
@@ -29,10 +33,12 @@ export const ACTIONS: { id: ActionId; title: string; group: ActionGroup; default
   { id: "previousTask", title: "Previous task", group: "Navigation", defaults: ["k"] },
   { id: "commandPalette", title: "Command palette / search", group: "Navigation", defaults: ["/"] },
   { id: "shortcutsPanel", title: "Keyboard shortcuts panel", group: "Navigation", defaults: ["?"] },
+  { id: "productivity", title: "Productivity", group: "Navigation", defaults: ["o"] },
   { id: "completeTask", title: "Complete task", group: "Tasks", defaults: ["e"] },
   { id: "openDetail", title: "Open task detail", group: "Tasks", defaults: ["i"] },
   { id: "quickAdd", title: "Quick add", group: "Tasks", defaults: ["q", "a"] },
   { id: "editLabels", title: "Edit tags", group: "Tasks", defaults: ["l"] },
+  { id: "toggleSelect", title: "Add to selection", group: "Tasks", defaults: ["x"] },
   { id: "priority1", title: "Priority 1", group: "Tasks", defaults: ["1"] },
   { id: "priority2", title: "Priority 2", group: "Tasks", defaults: ["2"] },
   { id: "priority3", title: "Priority 3", group: "Tasks", defaults: ["3"] },
@@ -42,6 +48,8 @@ export const ACTIONS: { id: ActionId; title: string; group: ActionGroup; default
   { id: "scheduleWeekend", title: "This weekend", group: "Schedule", defaults: ["w"] },
   { id: "scheduleNextWeek", title: "Next week", group: "Schedule", defaults: ["n"] },
   { id: "scheduleClear", title: "Remove due date", group: "Schedule", defaults: ["0", "shift+t"] },
+  { id: "schedulePicker", title: "Pick a date…", group: "Schedule", defaults: ["s"] },
+  { id: "deadlinePicker", title: "Set deadline…", group: "Schedule", defaults: ["d"] },
 ];
 
 /** Structural keys that are documented but not remappable (as in Remit). */
@@ -54,6 +62,11 @@ export const FIXED_BINDINGS: { group: ActionGroup; keys: string; title: string }
   { group: "Navigation", keys: "G then I / T / U / F", title: "Go to Inbox / Today / Upcoming / Filters & Tags" },
   { group: "Tasks", keys: "↩", title: "Open task detail" },
   { group: "Tasks", keys: "⌘⌫", title: "Delete task" },
+  { group: "Tasks", keys: "⌘D", title: "Duplicate task" },
+  { group: "Tasks", keys: "⌥↑ ⌥↓", title: "Move task up / down" },
+  { group: "Tasks", keys: "⇧↑ ⇧↓", title: "Extend selection" },
+  { group: "Tasks", keys: "⌘-click ⇧-click", title: "Select several tasks" },
+  { group: "Tasks", keys: "⌘⇧C", title: "Copy link to the Notion page" },
   { group: "Tasks", keys: "⌘Z", title: "Undo last change" },
 ];
 

@@ -18,6 +18,10 @@ export interface TaskFields {
   notes: string | null;
   /** Section name within the task's project. */
   section: string | null;
+  /** Hard "must be done by" date, separate from when you plan to do it (Things, Todoist). */
+  deadline: string | null;
+  /** Planned length in minutes; sizes the task on the calendar. */
+  duration: number | null;
 }
 
 export interface Task extends TaskFields {
@@ -48,6 +52,8 @@ export const DEFAULT_FIELDS: TaskFields = {
   completedAt: null,
   notes: null,
   section: null,
+  deadline: null,
+  duration: null,
 };
 
 export type OutboxOp =

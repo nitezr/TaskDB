@@ -138,7 +138,7 @@ function Column({
             key={t.id}
             task={t}
             variant="card"
-            selected={ctx.selected === t.id}
+            selected={ctx.selected === t.id || ctx.multi.has(t.id)}
             completing={ctx.completing.has(t.id)}
             showProject={ctx.showProject}
             onSelect={ctx.onSelect}

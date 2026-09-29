@@ -4,6 +4,8 @@ import type { Store } from "../store/store";
 import { DEFAULT_FIELDS, type Task, type TaskFields } from "../types";
 import { Outbox } from "./outbox";
 
+const OPTIONAL_ON_CREATE = ["deadline", "duration"] as const;
+
 /**
  * Notion stores last_edited_time rounded to the minute, so a delta query
  * must look back a little to avoid missing edits made in the same minute.
@@ -104,7 +106,11 @@ export class SyncEngine {
           if (notionId) await client.trashPage(notionId);
           store.setMeta(`deleted:${op.taskId}`, "");
         } else if (op.kind === "create") {
-          const page = await client.createPage(tasksDataSourceId, toProperties(op.fields, this.resolveTask));
+          // Empty newer fields are left out, so a create never depends on a column an older
+          // workspace may still be missing.
+          const fields = { ...op.fields };
+          for (const k of OPTIONAL_ON_CREATE) if (fields[k] == null) delete fields[k];
+          const page = await client.createPage(tasksDataSourceId, toProperties(fields, this.resolveTask));
           this.applyPushed(op.taskId, page);
         } else if (task?.notionId) {
           const page = await client.updatePage(task.notionId, toProperties(op.fields, this.resolveTask));

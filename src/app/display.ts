@@ -25,7 +25,7 @@ export const sameView = (a: View, b: View) => JSON.stringify(a) === JSON.stringi
 
 export type Layout = "list" | "board" | "calendar";
 export type GroupBy = "default" | "none" | "dueDate" | "priority" | "label" | "project" | "section";
-export type Sorting = "smart" | "manual" | "dueDate" | "priority" | "alphabetical" | "added";
+export type Sorting = "smart" | "manual" | "dueDate" | "deadline" | "priority" | "alphabetical" | "added";
 export type Deadline = "all" | "overdue" | "today" | "thisWeek" | "noDate";
 export type CalendarRange = "day" | "threeDays" | "week" | "month";
 
@@ -64,6 +64,7 @@ export const SORT_LABELS: Record<Sorting, string> = {
   smart: "Smart",
   manual: "Manual (drag to order)",
   dueDate: "Due date",
+  deadline: "Deadline",
   priority: "Priority",
   alphabetical: "Alphabetical",
   added: "Date added",
@@ -116,6 +117,7 @@ export function sortTasks(tasks: Task[], sorting: Sorting): Task[] {
     smart: (a, b) => cmpDue(a, b) || a.priority - b.priority || cmpOrder(a, b),
     manual: cmpOrder,
     dueDate: (a, b) => cmpDue(a, b) || cmpOrder(a, b),
+    deadline: (a, b) => (a.deadline ?? "9999").localeCompare(b.deadline ?? "9999") || cmpDue(a, b) || cmpOrder(a, b),
     priority: (a, b) => a.priority - b.priority || cmpDue(a, b) || cmpOrder(a, b),
     alphabetical: (a, b) => a.title.localeCompare(b.title),
     added: (a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? "") || cmpOrder(a, b),
@@ -153,7 +155,10 @@ export function viewTasks(view: View, app: AppController, prefs: DisplayPrefs, n
       base = all.filter((t) => !t.projectId || !app.project(t.projectId));
       break;
     case "today":
-      base = all.filter((t) => t.due && dueDay(t.due) <= today && (!t.done || dueDay(t.due) === today));
+      // Deadlines arriving today (or missed) pull a task into Today, as in Things.
+      base = all.filter(
+        (t) => (t.due && dueDay(t.due) <= today && (!t.done || dueDay(t.due) === today)) || (!t.done && t.deadline && dueDay(t.deadline) <= today),
+      );
       break;
     case "upcoming":
       base = all.filter((t) => t.due);
@@ -340,7 +345,8 @@ function groupByDate(tasks: Task[], now: Date, opts: BuildOptions, upcoming: boo
   const byDay = new Map<string, Task[]>();
   for (const t of tasks) {
     if (overdue.includes(t)) continue;
-    const key = t.due ? dueDay(t.due) : "none";
+    const deadlineDue = !t.done && t.deadline && dueDay(t.deadline) <= today;
+    const key = t.due && !(deadlineDue && dueDay(t.due) > today) ? dueDay(t.due) : deadlineDue ? today : t.due ? dueDay(t.due) : "none";
     byDay.set(key, [...(byDay.get(key) ?? []), t]);
   }
   const keys = [...byDay.keys()].sort((a, b) => (a === "none" ? 1 : b === "none" ? -1 : a.localeCompare(b)));

@@ -75,6 +75,8 @@ function taskProperties(projectsDataSourceId: string): Record<string, unknown> {
     [P.completedAt]: { date: {} },
     [P.notes]: { rich_text: {} },
     [P.section]: { select: { options: [] } },
+    [P.deadline]: { date: {} },
+    [P.duration]: { number: {} },
   };
 }
 

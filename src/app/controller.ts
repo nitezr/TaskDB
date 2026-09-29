@@ -42,6 +42,14 @@ export interface ProjectTemplate {
   createdAt: string;
 }
 
+export interface Completion {
+  id: string;
+  title: string;
+  projectId: string | null;
+  /** Local ISO time (or a date for tasks completed before the log existed). */
+  at: string;
+}
+
 export interface Settings {
   theme: "system" | "light" | "dark";
   accent: string;
@@ -59,6 +67,20 @@ export interface Settings {
   /** Remapped shortcuts: action id -> key combos. */
   shortcuts: Record<string, string[]>;
   tourDone: boolean;
+  /** Colour theme id (themes.ts). */
+  palette: string;
+  density: "comfortable" | "compact";
+  /** 0 = Sunday, 1 = Monday. Used by calendars and "next week". */
+  weekStart: 0 | 1;
+  /** The view TaskDB opens on. */
+  startView: "inbox" | "today" | "upcoming";
+  /** Tasks to complete per day for the productivity ring; 0 hides it. */
+  dailyGoal: number;
+  weeklyGoal: number;
+  /** Days of the week (0 = Sunday) that don't break a streak. */
+  daysOff: number[];
+  /** Show the Today count on the Dock icon. */
+  dockBadge: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -73,6 +95,14 @@ export const DEFAULT_SETTINGS: Settings = {
   collapsed: [],
   shortcuts: {},
   tourDone: false,
+  palette: "classic",
+  density: "comfortable",
+  weekStart: 0,
+  startView: "today",
+  dailyGoal: 5,
+  weeklyGoal: 25,
+  daysOff: [0, 6],
+  dockBadge: true,
 };
 const IDLE_AFTER_MS = 10 * 60_000;
 const PROJECT_REFRESH_MS = 30 * 60_000;
@@ -152,11 +182,14 @@ export class AppController {
     });
     this.scheduler = new SyncScheduler(this.engine);
     this.projects = (JSON.parse(this.store.getMeta("projects") ?? "[]") as Project[]).map(withProjectDefaults);
-    this.scheduler.start();
-    // Older workspaces get the columns newer versions need, then projects load.
+    // Older workspaces get the columns newer versions need before any change is pushed; then
+    // syncing starts and projects load. Offline, syncing starts anyway and retries as usual.
     void upgradeWorkspace(this.client, ids)
       .catch((e) => (this.lastError = e instanceof Error ? e.message : String(e)))
-      .finally(() => void this.refreshProjects());
+      .finally(() => {
+        this.scheduler?.start();
+        void this.refreshProjects();
+      });
     this.timers.push(setInterval(() => void this.refreshProjects(), PROJECT_REFRESH_MS));
     this.timers.push(setInterval(() => this.checkReminders(), 30_000));
     this.timers.push(setInterval(() => this.updateActivity(), 60_000));
@@ -270,15 +303,27 @@ export class AppController {
   /** Parses quick-add text and creates the task. Unknown #projects are created in Notion. */
   async quickAdd(text: string, defaults: Partial<TaskFields> = {}): Promise<Task | null> {
     if (!this.guard()) return null;
-    const r = parseQuickAdd(text, { projects: this.projects.map((p) => p.name), people: this.people(), labels: this.labels() });
+    const r = parseQuickAdd(text, {
+      projects: this.projects.map((p) => p.name),
+      people: this.people(),
+      labels: this.labels(),
+      sections: [...new Set(this.projects.flatMap((p) => p.sections))],
+    });
     if (!r.title) return null;
     let projectId = defaults.projectId ?? null;
     if (r.project) {
       const found = this.projects.find((p) => p.name.toLowerCase() === r.project!.toLowerCase());
       projectId = found ? found.id : ((await this.addProject({ name: r.project }).catch(() => null))?.id ?? projectId);
     }
+    let section = defaults.section ?? null;
+    if (r.section && projectId) {
+      const known = this.sections(projectId).find((n) => n.toLowerCase() === r.section!.toLowerCase());
+      section = known ?? r.section;
+      if (!known) await this.addSection(projectId, r.section).catch(() => undefined);
+    }
     return this.createTask({
       ...defaults,
+      section,
       title: r.title,
       due: r.due ?? defaults.due ?? null,
       priority: r.priority !== 4 ? r.priority : (defaults.priority ?? 4),
@@ -286,6 +331,8 @@ export class AppController {
       labels: [...new Set([...(defaults.labels ?? []), ...r.labels])],
       person: r.person ?? defaults.person ?? null,
       recurrence: r.recurrence,
+      deadline: r.deadline ?? defaults.deadline ?? null,
+      duration: r.duration ?? defaults.duration ?? null,
     });
   }
 
@@ -314,6 +361,7 @@ export class AppController {
     const task = this.task(id);
     if (!task) return;
     this.transaction(() => {
+      this.logCompletion(task);
       if (task.recurrence && !task.parentId) {
         const due = nextDue(task.recurrence, task.due);
         if (due) {
@@ -331,6 +379,44 @@ export class AppController {
         this.updateTask(sub.id, { done: true, completedAt });
       }
     }, `Completed “${task.title}”`);
+  }
+
+  /** Moves a repeating task to its next date without counting it as done. */
+  skipOccurrence(id: string): void {
+    const task = this.task(id);
+    if (!task?.recurrence) return;
+    const due = nextDue(task.recurrence, task.due);
+    if (due) this.transaction(() => this.updateTask(id, { due }), `Skipped “${task.title}”`);
+  }
+
+  // ---- Productivity ----
+
+  /** Every completion, including each round of a repeating task, which Notion can't keep. */
+  completions(): Completion[] {
+    return this.store ? JSON.parse(this.store.getMeta("completions") ?? "[]") : [];
+  }
+
+  private logCompletion(task: Task): void {
+    const entry: Completion = { id: task.id, title: task.title, projectId: task.projectId, at: toLocalIso(new Date()) };
+    const save = (list: Completion[]) => this.store.setMeta("completions", JSON.stringify(list.slice(-5000)));
+    save([...this.completions(), entry]);
+    this.record(`Completed “${task.title}”`, () => save(this.completions().filter((c) => !(c.id === entry.id && c.at === entry.at))));
+  }
+
+  /** Completions per local day, merging the log with done tasks from before it existed. */
+  completedByDay(): Map<string, Completion[]> {
+    const out = new Map<string, Completion[]>();
+    const seen = new Set<string>();
+    const add = (c: Completion) => {
+      const day = c.at.slice(0, 10);
+      const key = `${c.id}@${day}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.set(day, [...(out.get(day) ?? []), c]);
+    };
+    for (const c of this.completions()) add(c);
+    for (const t of this.tasks()) if (t.done && t.completedAt) add({ id: t.id, title: t.title, projectId: t.projectId, at: t.completedAt });
+    return out;
   }
 
   reopen(id: string): void {

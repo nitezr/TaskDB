@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
-import { hasTime, parseDue, toDateStr, toLocalIso } from "../../core/dates";
+import { deadlineLabel, dueLabel, formatDuration, hasTime, parseDue, toDateStr, toLocalIso } from "../../core/dates";
 import { parseQuickAdd } from "../../core/quickAdd";
 import { parseRule } from "../../core/recurrence";
 import type { Priority } from "../../types";
 import { askConfirm } from "../confirm";
 import { useApp } from "../hooks";
-import { ChevronDownIcon, ChevronUpIcon, CloseIcon, HashIcon, TrashIcon } from "../icons";
+import { CalendarSmallIcon, ChevronDownIcon, ChevronUpIcon, CloseIcon, FlagIcon, HashIcon, TrashIcon } from "../icons";
+import { type Anchor, anchorOf } from "../ui";
+import { DatePicker } from "./DatePicker";
+
+const short = (d: string) => parseDue(d).toLocaleDateString(undefined, { day: "numeric", month: "short" });
 import { QuickAdd } from "./QuickAdd";
 
 const REPEATS: [string, string][] = [
@@ -37,14 +41,13 @@ export function DetailPeek({ id, onClose, onOpen, prevId, nextId, onComplete }: 
   const [notes, setNotes] = useState(task?.notes ?? "");
   const [tagQuery, setTagQuery] = useState("");
   const [customRepeat, setCustomRepeat] = useState<string | null>(null);
-  const [nlDate, setNlDate] = useState("");
   const [addingSub, setAddingSub] = useState(false);
+  const [picker, setPicker] = useState<{ kind: "due" | "deadline"; anchor: Anchor } | null>(null);
 
   useEffect(() => {
     setTitle(task?.title ?? "");
     setNotes(task?.notes ?? "");
     setCustomRepeat(null);
-    setNlDate("");
     setTagQuery("");
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -81,19 +84,9 @@ export function DetailPeek({ id, onClose, onOpen, prevId, nextId, onComplete }: 
   const parent = task.parentId ? app.task(task.parentId) : undefined;
   const sections = task.projectId ? app.sections(task.projectId) : [];
   const timed = task.due ? hasTime(task.due) : false;
-  const dueDate = task.due ? toDateStr(parseDue(task.due)) : "";
-  const dueTime = task.due && timed ? `${pad(parseDue(task.due).getHours())}:${pad(parseDue(task.due).getMinutes())}` : "";
   const repeatKnown = REPEATS.some(([v]) => v === (task.recurrence ?? ""));
   const allTags = [...new Set([...app.labels(), ...task.labels])];
   const shownTags = allTags.filter((l) => l.toLowerCase().includes(tagQuery.toLowerCase()));
-
-  const setDate = (date: string, time: string) => {
-    if (!date) return update({ due: null });
-    if (!time) return update({ due: date });
-    const [y, m, d] = date.split("-").map(Number);
-    const [hh, mm] = time.split(":").map(Number);
-    update({ due: toLocalIso(new Date(y!, m! - 1, d!, hh!, mm!)) });
-  };
 
   const addTag = (raw: string) => {
     const v = raw.trim().replace(/^[@#]/, "");
@@ -254,38 +247,34 @@ export function DetailPeek({ id, onClose, onOpen, prevId, nextId, onComplete }: 
 
             <div className="prop">
               <h5>Date</h5>
-              <div className="inline">
-                <input type="date" value={dueDate} onChange={(e) => setDate(e.target.value, dueTime)} />
-                {task.due && (
-                  <button className="icon-btn" onClick={() => update({ due: null })} aria-label="Clear date">
-                    ✕
-                  </button>
-                )}
-              </div>
-              {task.due && (
-                <>
-                  <label className="toggle">
-                    <input type="checkbox" checked={!timed} onChange={(e) => setDate(dueDate, e.target.checked ? "" : "09:00")} />
-                    All-day
-                  </label>
-                  {timed && (
-                    <input type="time" value={dueTime} onChange={(e) => setDate(dueDate, e.target.value)} style={{ marginTop: 6 }} />
-                  )}
-                </>
-              )}
-              <input
-                placeholder="or type: tomorrow 5pm, fri, oct 5…"
-                value={nlDate}
-                onChange={(e) => setNlDate(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key !== "Enter") return;
-                  const r = parseQuickAdd(`x ${nlDate}`);
-                  if (r.due) update({ due: r.due, ...(r.recurrence ? { recurrence: r.recurrence } : {}) });
-                  setNlDate("");
-                }}
-                style={{ marginTop: 6 }}
-              />
+              <button className={`date-btn ${task.due ? "" : "empty"}`} onClick={(e) => setPicker({ kind: "due", anchor: anchorOf(e.currentTarget) })}>
+                <CalendarSmallIcon size={12} />
+                {task.due ? dueLabel(task.due) : "Add date"}
+                {task.duration ? <span className="muted"> · {formatDuration(task.duration)}</span> : null}
+              </button>
             </div>
+
+            <div className="prop">
+              <h5>Deadline</h5>
+              <button
+                className={`date-btn ${task.deadline ? `deadline ${deadlineLabel(task.deadline).tone}` : "empty"}`}
+                onClick={(e) => setPicker({ kind: "deadline", anchor: anchorOf(e.currentTarget) })}
+              >
+                <FlagIcon size={11} />
+                {task.deadline ? `${short(task.deadline)} · ${deadlineLabel(task.deadline).text}` : "Add deadline"}
+              </button>
+            </div>
+            {picker && (
+              <DatePicker
+                anchor={picker.anchor}
+                mode={picker.kind}
+                value={picker.kind === "due" ? task.due : task.deadline}
+                duration={task.duration}
+                onDuration={picker.kind === "due" ? (m) => update({ duration: m }) : undefined}
+                onChange={(v) => update(picker.kind === "due" ? { due: v } : { deadline: v })}
+                onClose={() => setPicker(null)}
+              />
+            )}
 
             <div className="prop">
               <h5>Repeat</h5>

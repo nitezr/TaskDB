@@ -208,3 +208,30 @@ export const CheckCircleIcon = (p?: IconProps) =>
     </>,
     p,
   );
+export const FlagIcon = (p?: IconProps) => svg(<path d="M3.5 14V2.5M3.5 3h8.2l-1.8 3 1.8 3H3.5" />, { size: 10, ...p });
+export const ClockIcon = (p?: IconProps) =>
+  svg(
+    <>
+      <circle cx="8" cy="8" r="6" />
+      <path d="M8 4.8V8l2.2 1.4" />
+    </>,
+    { size: 11, ...p },
+  );
+export const PersonIcon = (p?: IconProps) =>
+  svg(
+    <>
+      <circle cx="8" cy="5.5" r="2.7" />
+      <path d="M2.8 14a5.2 5.2 0 0 1 10.4 0" />
+    </>,
+    { size: 11, ...p },
+  );
+export const SectionIcon = (p?: IconProps) => svg(<path d="M2.5 4h11M2.5 8h7M2.5 12h9" />, { size: 11, ...p });
+export const SubtaskIcon = (p?: IconProps) =>
+  svg(
+    <>
+      <path d="M4 2.5v6.5a2 2 0 0 0 2 2h4" />
+      <circle cx="11.8" cy="11" r="1.8" />
+      <circle cx="4" cy="2.5" r=".2" />
+    </>,
+    { size: 10, ...p },
+  );

@@ -89,3 +89,23 @@ export function dayHeading(day: string, now: Date = new Date()): string {
   // "29 Sep · Today", "1 Oct · Thursday": the relative word replaces the weekday.
   return `${d.getDate()} ${MONTH_NAMES[d.getMonth()]} · ${rel === "Today" || rel === "Tomorrow" ? rel : FULL_DAYS[d.getDay()]}`;
 }
+
+/** 45 → "45m", 90 → "1h 30m", 120 → "2h". */
+export function formatDuration(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return h ? `${h}h${m ? ` ${m}m` : ""}` : `${m}m`;
+}
+
+/**
+ * Things-style deadline countdown: "5 days left", "Due today", "2d ago".
+ * `tone` is "late" once due or overdue, "soon" within two days.
+ */
+export function deadlineLabel(deadline: string, now: Date = new Date()): { text: string; tone: "late" | "soon" | "" } {
+  const diff = Math.round((startOfDay(parseDue(deadline)).getTime() - startOfDay(now).getTime()) / 86_400_000);
+  if (diff < 0) return { text: `${-diff}d ago`, tone: "late" };
+  if (diff === 0) return { text: "Due today", tone: "late" };
+  if (diff <= 14) return { text: `${diff} day${diff === 1 ? "" : "s"} left`, tone: diff <= 2 ? "soon" : "" };
+  const d = parseDue(deadline);
+  return { text: `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`, tone: "" };
+}
