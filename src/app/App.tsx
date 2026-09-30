@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { addDays, formatDue, hasTime, parseDue, startOfDay, toDateStr } from "../core/dates";
+import { addDays, formatDue, hasTime, parseDue, startOfDay, toDateStr, formatDuration } from "../core/dates";
 import type { Priority, Task, TaskFields } from "../types";
 import { BoardView } from "./components/BoardView";
 import { CalendarView } from "./components/CalendarView";
@@ -27,12 +27,27 @@ import { useApp } from "./hooks";
 import { actionForCombo, comboFromEvent } from "./shortcuts";
 import { type Anchor, anchorOf, type MenuEntry, playCompleteSound, Popover, useMenu } from "./ui";
 import { THEMES } from "./themes";
-import { BackIcon, ChevronIcon, MoonIcon, CloseIcon, DisplayIcon, ForwardIcon, I, SearchIcon, SidebarIcon, WarningIcon } from "./icons";
+import { I, ArchiveIcon, BackIcon, CalendarSmallIcon, CheckCircleIcon, ChevronIcon, ClockIcon, CloseIcon, DisplayIcon, FlagIcon, FolderIcon, ForwardIcon, InboxIcon, MoonIcon, NoDateIcon, RepeatIcon, SearchIcon, SidebarIcon, WarningIcon } from "./icons";
 
 interface Toast {
   text: string;
   undo?: boolean;
+  icon?: React.ReactNode;
 }
+
+/** "Today", "Tomorrow", "Saturday" within the week, else "Mon 6 Oct": how toasts name a date. */
+function dayPhrase(due: string): string {
+  const d = parseDue(due);
+  const diff = Math.round((startOfDay(d).getTime() - startOfDay(new Date()).getTime()) / 86_400_000);
+  const time = hasTime(due) ? ` ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}` : "";
+  if (diff === 0) return `Today${time}`;
+  if (diff === 1) return `Tomorrow${time}`;
+  if (diff > 1 && diff < 7) return `${d.toLocaleDateString(undefined, { weekday: "long" })}${time}`;
+  return `${d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}${time}`;
+}
+
+/** One task: "Moved to Today". Several: "Moved to Today · 3 tasks". */
+const phrase = (count: number, text: string) => (count > 1 ? `${text} · ${count} tasks` : text);
 
 export function App() {
   const app = useApp();
@@ -180,7 +195,11 @@ function Main() {
         return n;
       });
       const after = app.task(id);
-      setToast({ text: after && !after.done ? "Rescheduled to the next date" : "1 task completed", undo: true });
+      setToast(
+        after && !after.done && after.due
+          ? { text: `Done · next ${dayPhrase(after.due)}`, undo: true, icon: <RepeatIcon size={13} /> }
+          : { text: "Completed", undo: true, icon: <CheckCircleIcon size={14} /> },
+      );
       setSelected((s) => (s === id && after?.done ? next : s));
     }, 320);
   };
@@ -224,14 +243,14 @@ function Main() {
       app.transaction(() => open.forEach((id) => app.complete(id)), `Completed ${open.length} tasks`);
       setCompleting(new Set());
       setMulti(new Set());
-      setToast({ text: `${open.length} tasks completed`, undo: true });
+      setToast({ text: `${open.length} tasks completed`, undo: true, icon: <CheckCircleIcon size={14} /> });
     }, 320);
   };
 
-  const updateMany = (ids: string[], patch: Partial<TaskFields>, label: string) => {
+  const updateMany = (ids: string[], patch: Partial<TaskFields>, label: string, icon?: React.ReactNode) => {
     if (!ids.length) return;
     app.transaction(() => ids.forEach((id) => moveTask(id, patch)), label);
-    if (ids.length > 1) setToast({ text: label, undo: true });
+    setToast({ text: phrase(ids.length, label), undo: true, icon });
   };
 
   const deleteMany = (ids: string[]) => {
@@ -289,7 +308,11 @@ function Main() {
     if (!ids.length) return;
     const patch: Partial<TaskFields> = when === "evening" ? { due: toDateStr(new Date()), when } : { due: null, when };
     app.transaction(() => ids.forEach((id) => app.updateTask(id, patch)), when === "evening" ? "Moved to This Evening" : "Moved to Someday");
-    setToast({ text: `${ids.length > 1 ? `${ids.length} tasks` : "Moved"} to ${when === "evening" ? "This Evening" : "Someday"}`, undo: true });
+    setToast({
+      text: phrase(ids.length, `Moved to ${when === "evening" ? "This Evening" : "Someday"}`),
+      undo: true,
+      icon: when === "evening" ? <MoonIcon size={13} filled /> : <ArchiveIcon size={13} />,
+    });
   };
 
   const openPicker = (kind: "due" | "deadline", ids: string[]) => {
@@ -301,7 +324,16 @@ function Main() {
   const reschedule = (ids: string[], target: ScheduleTarget) => {
     if (!ids.length) return;
     app.schedule(ids, target);
-    setToast({ text: ids.length === 1 ? "Rescheduled" : `Rescheduled ${ids.length} tasks`, undo: true });
+    const due = scheduleDue(null, target);
+    const text =
+      target === "none"
+        ? "Date removed"
+        : target === "weekend"
+          ? `Moved to the weekend · ${dayPhrase(due!)}`
+          : target === "nextWeek"
+            ? `Moved to next week · ${dayPhrase(due!)}`
+            : `Moved to ${dayPhrase(due!)}`;
+    setToast({ text: phrase(ids.length, text), undo: true, icon: target === "none" ? <NoDateIcon size={13} /> : <CalendarSmallIcon size={13} /> });
   };
 
   const moveTask = (id: string, patch: Partial<TaskFields>) => {
@@ -335,11 +367,11 @@ function Main() {
     const moveMenu = () =>
       taskMenu.open(at, [
         { heading: many ? `Move ${ids.length} tasks to` : "Move to" },
-        { label: "Inbox", icon: <I.inbox />, onClick: () => updateMany(ids, { projectId: null, section: null }, "Moved to Inbox") },
+        { label: "Inbox", icon: <I.inbox />, onClick: () => updateMany(ids, { projectId: null, section: null }, "Moved to Inbox", <InboxIcon size={13} />) },
         ...app.projectTree().map(({ project, depth }) => ({
           label: `${"   ".repeat(depth)}${project.name}`,
           icon: project.emoji ?? "#",
-          onClick: () => updateMany(ids, { projectId: project.id, section: null }, `Moved to ${project.name}`),
+          onClick: () => updateMany(ids, { projectId: project.id, section: null }, `Moved to ${project.name}`, <FolderIcon size={13} />),
         })),
         ...(sections.length && !many
           ? [
@@ -358,7 +390,11 @@ function Main() {
             { label: "Edit tags…", icon: <I.tags />, hint: "L", onClick: () => setLabelsFor({ id, anchor: at }) },
           ]),
       { label: t.done && !many ? "Reopen" : "Complete", icon: <I.check />, hint: "E", onClick: () => (t.done && !many ? complete(id) : completeMany(ids)) },
-      ...(t.recurrence && !many ? [{ label: "Skip this occurrence", icon: <I.skip />, onClick: () => (app.skipOccurrence(id), setToast({ text: "Skipped to the next date", undo: true })) }] : []),
+      ...(t.recurrence && !many ? [{ label: "Skip this occurrence", icon: <I.skip />, onClick: () => {
+                    app.skipOccurrence(id);
+                    const next = app.task(id)?.due;
+                    setToast({ text: next ? `Skipped · next ${dayPhrase(next)}` : "Skipped", undo: true, icon: <I.skip /> });
+                  } }] : []),
       { separator: true },
       ...RESCHEDULE_TARGETS.filter(([target]) => target !== "none").map(([target, label]) => ({ label, hint: hint(target), onClick: () => reschedule(ids, target) })),
       { label: "This evening", icon: <MoonIcon size={13} />, hint: "⇧E", onClick: () => setWhen(ids, "evening") },
@@ -371,7 +407,7 @@ function Main() {
         label: `Priority ${p}`,
         icon: !many && t.priority === p ? <I.check /> : "",
         hint: String(p),
-        onClick: () => updateMany(ids, { priority: p }, `Set priority ${p}`),
+        onClick: () => updateMany(ids, { priority: p }, `Priority ${p}`, <FlagIcon size={12} className={`prio-${p}`} />),
       })),
       { separator: true },
       { label: "Move to…", icon: <I.right />, onClick: () => setTimeout(moveMenu) },
@@ -670,7 +706,7 @@ function Main() {
         case "priority2":
         case "priority3":
         case "priority4":
-          updateMany(targets(), { priority: Number(action.slice(-1)) as Priority }, `Set priority ${action.slice(-1)}`);
+          updateMany(targets(), { priority: Number(action.slice(-1)) as Priority }, `Priority ${action.slice(-1)}`, <FlagIcon size={12} className={`prio-${action.slice(-1)}`} />);
           break;
         case "scheduleToday":
           reschedule(targets(), "today");
@@ -1010,8 +1046,16 @@ function Main() {
             return (picker.kind === "due" ? t?.due : t?.deadline) ?? null;
           })()}
           duration={picker.ids.length === 1 ? app.task(picker.ids[0]!)?.duration : undefined}
-          onDuration={picker.kind === "due" ? (m) => updateMany(picker.ids, { duration: m }, "Set duration") : undefined}
-          onChange={(v) => updateMany(picker.ids, picker.kind === "due" ? { due: v } : { deadline: v }, picker.kind === "due" ? "Rescheduled" : "Set deadline")}
+          onDuration={
+            picker.kind === "due"
+              ? (m) => updateMany(picker.ids, { duration: m }, m ? `Duration · ${formatDuration(m)}` : "Duration removed", <ClockIcon size={13} />)
+              : undefined
+          }
+          onChange={(v) =>
+            picker.kind === "due"
+              ? updateMany(picker.ids, { due: v }, v ? `Moved to ${dayPhrase(v)}` : "Date removed", <CalendarSmallIcon size={13} />)
+              : updateMany(picker.ids, { deadline: v }, v ? `Deadline · ${dayPhrase(v)}` : "Deadline removed", <FlagIcon size={12} />)
+          }
           onClose={() => setPicker(null)}
         />
       )}
@@ -1020,8 +1064,8 @@ function Main() {
           count={multi.size}
           onComplete={() => completeMany([...multi])}
           onSchedule={(e) => setPicker({ kind: "due", ids: [...multi], anchor: anchorOf(e.currentTarget) })}
-          onPriority={(p) => updateMany([...multi], { priority: p }, `Set priority ${p} on ${multi.size} tasks`)}
-          onMove={(projectId) => updateMany([...multi], { projectId, section: null }, `Moved ${multi.size} tasks`)}
+          onPriority={(p) => updateMany([...multi], { priority: p }, `Priority ${p}`, <FlagIcon size={12} className={`prio-${p}`} />)}
+          onMove={(projectId) => updateMany([...multi], { projectId, section: null }, `Moved to ${app.projectName(projectId) ?? "Inbox"}`, <FolderIcon size={13} />)}
           onDelete={() =>
             void askConfirm(`Delete ${multi.size} tasks?`, "Delete Tasks", { detail: "They are removed from Notion too. ⌘Z undoes it." }).then((ok) => ok && deleteMany([...multi]))
           }
@@ -1035,6 +1079,7 @@ function Main() {
       {taskMenu.element}
       {toast && (
         <div className="toast">
+          {toast.icon && <span className="toast-icon">{toast.icon}</span>}
           {toast.text}
           {toast.undo && (
             <button

@@ -4000,3 +4000,27 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 .menu-item .grow {
   white-space: pre;
 }
+
+/* Toasts say exactly what happened, with a small icon for the kind of change. */
+.toast {
+  gap: 10px;
+  padding: 9px 14px 9px 12px;
+  animation: toast-in 0.18s ease-out;
+}
+.toast .link {
+  margin-left: 6px;
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 6px);
+  }
+}
+.toast-icon {
+  display: inline-grid;
+  place-items: center;
+  color: rgba(255, 255, 255, 0.75);
+}
+.toast-icon .prio-1 { color: #ff7a6b; }
+.toast-icon .prio-2 { color: #f5a742; }
+.toast-icon .prio-3 { color: #6aa2ff; }
