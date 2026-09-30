@@ -224,6 +224,8 @@ export interface BuildOptions {
   upcomingDays?: number;
   /** List Upcoming: after the fixed days, keep going with every later day that has tasks. */
   upcomingOpenEnded?: boolean;
+  /** Boards keep empty groups: an empty column is still somewhere to drop a card. */
+  keepEmptyGroups?: boolean;
 }
 
 export function buildViewModel(view: View, app: AppController, prefs: DisplayPrefs, opts: BuildOptions = {}): ViewModel {
@@ -263,13 +265,13 @@ export function buildViewModel(view: View, app: AppController, prefs: DisplayPre
         tasks: sorted.filter((t) => t.priority === p),
         patch: { priority: p },
       }))
-      .filter((g) => g.tasks.length);
+      .filter((g) => g.tasks.length || opts.keepEmptyGroups);
   } else if (groupBy === "label") {
     const labels = [...new Set(sorted.flatMap((t) => t.labels))].sort((a, b) => a.localeCompare(b));
     groups = [
       ...labels.map((l) => ({ key: `l:${l}`, title: l, tasks: sorted.filter((t) => t.labels.includes(l)), patch: { labels: [l] } })),
       { key: "l:none", title: "No tag", tasks: sorted.filter((t) => !t.labels.length), patch: { labels: [] } },
-    ].filter((g) => g.tasks.length);
+    ].filter((g) => g.tasks.length || opts.keepEmptyGroups);
   } else if (groupBy === "project") {
     groups = [
       { key: "inbox", title: "Inbox", tasks: sorted.filter((t) => !app.project(t.projectId)), patch: { projectId: null, section: null } },
@@ -300,7 +302,7 @@ export function buildViewModel(view: View, app: AppController, prefs: DisplayPre
         patch: { section: n, ...(projectId ? { projectId } : {}) },
         section: projectId ? { projectId, name: n } : undefined,
       })),
-    ].filter((g) => g.key !== "s:none" || g.tasks.length || !names.length);
+    ].filter((g) => g.key !== "s:none" || g.tasks.length || !names.length || opts.keepEmptyGroups);
   }
 
   // Things' "This Evening": the evening part of Today, below everything else.

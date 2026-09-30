@@ -102,6 +102,7 @@ function Main() {
     upcomingStart,
     upcomingDays: 7,
     upcomingOpenEnded: layout !== "board",
+    keepEmptyGroups: layout === "board",
   });
   // ⌘F narrows the current view to matching tasks (title, description, tags, person).
   const [find, setFind] = useState<string | null>(null);
@@ -449,7 +450,28 @@ function Main() {
     onOpen: setOpenId,
     onComplete: complete,
     onContextMenu: openTaskMenu,
-    moveTask,
+    // Drags say what they changed, like the keyboard actions do.
+    moveTask: (id, patch) => {
+      const before = app.task(id);
+      moveTask(id, patch);
+      const text =
+        patch.priority !== undefined && patch.priority !== before?.priority
+          ? `Priority ${patch.priority}`
+          : patch.due !== undefined && patch.due !== before?.due
+            ? patch.due
+              ? `Moved to ${dayPhrase(app.task(id)?.due ?? patch.due)}`
+              : "Date removed"
+            : patch.projectId !== undefined && patch.projectId !== before?.projectId
+              ? `Moved to ${app.projectName(patch.projectId) ?? "Inbox"}`
+              : patch.section !== undefined && patch.section !== before?.section
+                ? patch.section
+                  ? `Moved to ${patch.section}`
+                  : "Removed from section"
+                : patch.labels !== undefined
+                  ? "Tags updated"
+                  : null;
+      if (text) setToast({ text, undo: true });
+    },
     reschedule,
   };
 
