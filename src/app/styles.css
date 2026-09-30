@@ -3793,3 +3793,11 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 .dp-icon {
   color: var(--muted);
 }
+
+/* WebKit only drags elements that opt in, and body has user-select: none. */
+[draggable="true"] {
+  -webkit-user-drag: element;
+}
+.proj-row[draggable="true"] .nav {
+  -webkit-user-drag: none;
+}

@@ -241,7 +241,14 @@ export function Sidebar(p: Props) {
     const isCollapsed = collapsed.has(`project:${proj.id}`);
     const drop = !inFavorites && dropAt && dropAt !== "root" && dropAt.id === proj.id ? `drop-${dropAt.zone}` : "";
     return (
-      <div key={(inFavorites ? "fav:" : "") + proj.id} className={`proj-row ${drop}`} style={{ "--depth": depth } as React.CSSProperties}>
+      // Drag handlers sit on the row's div, not the button: WebKit (the Mac app's engine) won't
+      // start a drag from a <button>.
+      <div
+        key={(inFavorites ? "fav:" : "") + proj.id}
+        className={`proj-row ${drop}`}
+        style={{ "--depth": depth } as React.CSSProperties}
+        {...(inFavorites ? {} : projectDnD(proj))}
+      >
         {kids ? (
           <button className={`chev ${isCollapsed ? "" : "open"}`} onClick={() => app.toggleCollapsed(`project:${proj.id}`)} aria-label={isCollapsed ? "Expand" : "Collapse"}>
             <ChevronIcon />
@@ -251,7 +258,7 @@ export function Sidebar(p: Props) {
         )}
         {row({ kind: "project", id: proj.id }, projectIcon(proj, kids), proj.name, projectCount(proj.id), {
           onContextMenu: (e: React.MouseEvent) => projectMenu(proj, e),
-          ...(inFavorites ? dropProps((taskId) => app.updateTask(taskId, { projectId: proj.id, section: null })) : projectDnD(proj)),
+          ...(inFavorites ? dropProps((taskId) => app.updateTask(taskId, { projectId: proj.id, section: null })) : {}),
         }, inFavorites ? "fav" : "")}
       </div>
     );
