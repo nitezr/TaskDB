@@ -188,10 +188,13 @@ export function Sidebar(p: Props) {
         icon: <I.trash />,
         danger: true,
         onClick: () =>
-          void askConfirm(`Delete “${proj.name}”?`, "Delete Project and Tasks", {
-            detail: projectCount(proj.id)
-              ? `This deletes the project and its ${projectCount(proj.id)} open task(s) from Notion too. Sub-projects move up a level.`
-              : "This deletes the project from Notion too. Sub-projects move up a level.",
+          void askConfirm(`Delete “${proj.name}”?`, projectCount(proj.id) ? "Delete Project and Tasks" : "Delete Project", {
+            detail:
+              (projectCount(proj.id) ? `Its ${projectCount(proj.id)} open task(s) are deleted from Notion too. ` : "") +
+              (app.columns.project.kind === "relation"
+                ? `“${proj.name}” stays in your linked database; it just leaves TaskDB (Settings › Notion can show it again).`
+                : "The project is removed from the Project column.") +
+              " Sub-projects move up a level.",
           }).then(
             (ok) => {
               if (!ok) return;

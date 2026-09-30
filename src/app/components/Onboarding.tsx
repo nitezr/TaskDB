@@ -202,7 +202,7 @@ export function Onboarding() {
         {step.kind === "access" && !step.existing && step.pages.length > 0 && (
           <>
             <h2>Where should TaskDB live?</h2>
-            <p className="muted">TaskDB adds two databases to this page: Tasks and Projects.</p>
+            <p className="muted">TaskDB adds one database to this page: TaskDB Tasks. Projects and people are columns in it, and you can link them to your own databases later.</p>
             <ul className="page-list">
               {step.pages.map((p) => (
                 <li key={p.id}>

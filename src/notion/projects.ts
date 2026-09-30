@@ -1,4 +1,5 @@
 import type { NotionClient, NotionPage } from "./client";
+import { type Columns, describeColumn, titleOfPage, titlePropertyOf } from "./columns";
 
 export interface Project {
   id: string;
@@ -6,7 +7,7 @@ export interface Project {
   color: string;
   archived: boolean;
   order: number;
-  /** Shown before the name; stored as the Notion page icon. */
+  /** Shown before the name; stored as the Notion page icon for linked projects. */
   emoji: string | null;
   favorite: boolean;
   /** Parent project for nesting (e.g. "Work" → "Acme Launch"). */
@@ -17,100 +18,237 @@ export interface Project {
   notes: string | null;
 }
 
-/** Property names of the auto-created Projects data source. */
+/**
+ * Project details TaskDB can keep in a linked Projects database, when it has a property with
+ * this name and type (the database earlier TaskDB versions created has them all; a user's own
+ * database often has Notes). Anything else is kept on this Mac.
+ */
 export const PP = {
-  name: "Name",
-  color: "Color",
-  archived: "Archived",
-  order: "Order",
-  favorite: "Favorite",
-  parentId: "Parent project",
-  sections: "Sections",
-  notes: "Notes",
+  color: ["Color", "select"],
+  archived: ["Archived", "checkbox"],
+  order: ["Order", "number"],
+  favorite: ["Favorite", "checkbox"],
+  parentId: ["Parent project", "relation"],
+  sections: ["Sections", "rich_text"],
+  notes: ["Notes", "rich_text"],
 } as const;
 
-const plain = (rich: any[] | undefined) =>
-  (rich ?? []).map((t: any) => t.plain_text ?? t.text?.content ?? "").join("");
+type Detail = keyof typeof PP;
+type Editable = Partial<Omit<Project, "id">>;
+type LocalMeta = Record<string, Editable & { hidden?: boolean }>;
+
+const plain = (rich: any[] | undefined) => (rich ?? []).map((t: any) => t.plain_text ?? t.text?.content ?? "").join("");
+const text = (s: string) => [{ type: "text", text: { content: s } }];
 
 export function projectFromPage(page: NotionPage): Project {
   const p = page.properties;
   return {
     id: page.id,
-    name: plain(p[PP.name]?.title) || "Untitled",
-    color: p[PP.color]?.select?.name ?? "gray",
-    archived: Boolean(p[PP.archived]?.checkbox),
-    order: p[PP.order]?.number ?? 0,
+    name: titleOfPage(page) || "Untitled",
+    color: p[PP.color[0]]?.select?.name ?? "gray",
+    archived: Boolean(p[PP.archived[0]]?.checkbox),
+    order: p[PP.order[0]]?.number ?? 0,
     emoji: page.icon?.type === "emoji" ? (page.icon.emoji ?? null) : null,
-    favorite: Boolean(p[PP.favorite]?.checkbox),
-    parentId: p[PP.parentId]?.relation?.[0]?.id ?? null,
-    sections: plain(p[PP.sections]?.rich_text)
+    favorite: Boolean(p[PP.favorite[0]]?.checkbox),
+    parentId: p[PP.parentId[0]]?.relation?.[0]?.id ?? null,
+    sections: plain(p[PP.sections[0]]?.rich_text)
       .split("\n")
       .map((s) => s.trim())
       .filter(Boolean),
-    notes: plain(p[PP.notes]?.rich_text) || null,
+    notes: plain(p[PP.notes[0]]?.rich_text) || null,
   };
 }
 
-type Editable = Partial<Omit<Project, "id">>;
-
-function toProperties(fields: Editable): Record<string, unknown> {
-  const props: Record<string, unknown> = {};
-  const text = (s: string) => [{ type: "text", text: { content: s } }];
-  if (fields.name !== undefined) props[PP.name] = { title: text(fields.name) };
-  if (fields.color !== undefined) props[PP.color] = { select: { name: fields.color } };
-  if (fields.archived !== undefined) props[PP.archived] = { checkbox: fields.archived };
-  if (fields.order !== undefined) props[PP.order] = { number: fields.order };
-  if (fields.favorite !== undefined) props[PP.favorite] = { checkbox: fields.favorite };
-  if (fields.parentId !== undefined) props[PP.parentId] = { relation: fields.parentId ? [{ id: fields.parentId }] : [] };
-  if (fields.notes !== undefined) {
-    const chunks = (fields.notes ?? "").match(/[\s\S]{1,2000}/g) ?? [];
-    props[PP.notes] = { rich_text: chunks.map((c) => ({ type: "text", text: { content: c } })) };
+function detailProperty(key: Detail, value: any): unknown {
+  switch (key) {
+    case "color":
+      return { select: { name: value } };
+    case "archived":
+    case "favorite":
+      return { checkbox: Boolean(value) };
+    case "order":
+      return { number: value };
+    case "parentId":
+      return { relation: value ? [{ id: value }] : [] };
+    case "sections":
+      return { rich_text: value.length ? text(value.join("\n")) : [] };
+    case "notes": {
+      const chunks: string[] = (value ?? "").match(/[\s\S]{1,2000}/g) ?? [];
+      return { rich_text: chunks.map((c) => ({ type: "text", text: { content: c } })) };
+    }
   }
-  if (fields.sections !== undefined) props[PP.sections] = { rich_text: fields.sections.length ? text(fields.sections.join("\n")) : [] };
-  return props;
 }
 
+const NOTION_COLORS: Record<string, string> = { default: "gray" };
+
 /**
- * Projects change rarely, so they skip the outbox: the list is re-read on
- * reconcile (a handful of requests) and edits go straight to Notion.
+ * Projects are whatever the Tasks database's Project column offers: the pages of a linked
+ * database, or the options of a select. There is no separate TaskDB Projects database.
+ * Sidebar details Notion has no place for (order, nesting, colour, sections…) live on this Mac.
  */
-export class ProjectsApi {
+export class ProjectSource {
   constructor(
     private readonly client: NotionClient,
-    private readonly dataSourceId: string,
+    private readonly tasksDataSourceId: string,
+    private readonly columns: Columns,
+    private readonly meta: { get(): string | undefined; set(v: string): void },
   ) {}
 
-  async list(): Promise<Project[]> {
-    const out: Project[] = [];
-    let cursor: string | undefined;
-    do {
-      const res = await this.client.queryDataSource(this.dataSourceId, {
-        page_size: 100,
-        ...(cursor ? { start_cursor: cursor } : {}),
-      });
-      out.push(...res.results.filter((p) => !p.in_trash).map(projectFromPage));
-      cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
-    } while (cursor);
-    return out.sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
+  private local(): LocalMeta {
+    try {
+      return JSON.parse(this.meta.get() ?? "{}");
+    } catch {
+      return {};
+    }
+  }
+
+  private saveLocal(id: string, fields: Editable & { hidden?: boolean }): void {
+    const all = this.local();
+    all[id] = { ...all[id], ...fields };
+    this.meta.set(JSON.stringify(all));
+  }
+
+  /** Which details the linked database can hold. */
+  private backed(key: Detail): boolean {
+    if (this.columns.project.kind !== "relation") return false;
+    return this.columns.linkedProjectProps[PP[key][0]] === PP[key][1];
+  }
+
+  /** Built from the last column refresh; costs no requests. */
+  list(): Project[] {
+    const col = this.columns.project;
+    const local = this.local();
+    let base: Project[] = [];
+    if (col.kind === "relation") {
+      const pages = this.columns.linkedProjectPages;
+      base = pages.length
+        ? pages.map(projectFromPage)
+        : this.columns.linkedProjects.map((p) => ({ ...projectFromPage({ id: p.id, last_edited_time: "", properties: {} }), name: p.name, emoji: p.emoji }));
+    } else if (col.kind === "select" || col.kind === "multi_select") {
+      base = col.options.map((o, i) => ({
+        id: o.id,
+        name: o.name,
+        color: NOTION_COLORS[o.color] ?? o.color,
+        archived: false,
+        order: i + 1,
+        emoji: null,
+        favorite: false,
+        parentId: null,
+        sections: [],
+        notes: null,
+      }));
+    }
+    return base
+      .filter((p) => !local[p.id]?.hidden)
+      .map((p) => {
+        const mine = { ...local[p.id] };
+        delete mine.hidden;
+        // Details the linked database holds come from Notion; the rest from this Mac.
+        for (const key of Object.keys(PP) as Detail[]) if (this.backed(key)) delete mine[key];
+        if (col.kind === "relation") delete mine.emoji;
+        delete mine.name;
+        return { ...p, ...mine };
+      })
+      .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
   }
 
   async create(fields: Editable & { name: string }): Promise<Project> {
-    const page = await this.client.request<NotionPage>("POST", "/pages", {
-      parent: { type: "data_source_id", data_source_id: this.dataSourceId },
-      properties: toProperties({ color: "gray", ...fields }),
-      ...(fields.emoji ? { icon: { type: "emoji", emoji: fields.emoji } } : {}),
-    });
-    return projectFromPage(page);
+    const col = this.columns.project;
+    const name = fields.name.trim();
+    let id: string;
+    if (col.kind === "relation" && col.dataSourceId) {
+      const titleProp = await titlePropertyOf(this.client, col.dataSourceId);
+      const properties: Record<string, unknown> = { [titleProp]: { title: text(name) } };
+      for (const key of Object.keys(PP) as Detail[]) {
+        if (fields[key] !== undefined && this.backed(key)) properties[PP[key][0]] = detailProperty(key, fields[key]);
+      }
+      const page: NotionPage = await this.client.request("POST", "/pages", {
+        parent: { type: "data_source_id", data_source_id: col.dataSourceId },
+        properties,
+        ...(fields.emoji ? { icon: { type: "emoji", emoji: fields.emoji } } : {}),
+      });
+      id = page.id;
+      this.columns.linkedProjectPages = [...this.columns.linkedProjectPages, page];
+      this.columns.linkedProjects = [...this.columns.linkedProjects, { id, name, emoji: fields.emoji ?? null }];
+    } else if (col.kind === "select" || col.kind === "multi_select") {
+      const options = [...col.options.map(({ id, name, color }) => ({ id, name, color })), { name, color: notionColor(fields.color) }];
+      await this.patchOptions(options);
+      id = this.columns.project.options.find((o) => o.name === name)?.id ?? name;
+    } else {
+      throw new Error(`TaskDB can't add projects: the Tasks database's “${col.name}” column is ${this.columns.describe("project").toLowerCase()}. Make it a select or link it to a Projects database.`);
+    }
+    const { name: _n, ...rest } = fields;
+    this.saveLocal(id, this.onlyLocal(rest));
+    return this.list().find((p) => p.id === id) ?? { ...projectFromPage({ id, last_edited_time: "", properties: {} }), ...fields, name };
   }
 
   async update(id: string, fields: Editable): Promise<void> {
-    const body: Record<string, unknown> = { properties: toProperties(fields) };
-    if (fields.emoji !== undefined) body.icon = fields.emoji ? { type: "emoji", emoji: fields.emoji } : null;
-    await this.client.request("PATCH", `/pages/${id}`, body);
+    const col = this.columns.project;
+    const { name, ...rest } = fields;
+    this.saveLocal(id, this.onlyLocal(rest));
+    if (col.kind === "relation") {
+      const properties: Record<string, unknown> = {};
+      if (name !== undefined) properties[await titlePropertyOf(this.client, col.dataSourceId!)] = { title: text(name) };
+      for (const key of Object.keys(PP) as Detail[]) {
+        if (rest[key] !== undefined && this.backed(key)) properties[PP[key][0]] = detailProperty(key, rest[key]);
+      }
+      const body: Record<string, unknown> = {};
+      if (Object.keys(properties).length) body.properties = properties;
+      if (rest.emoji !== undefined) body.icon = rest.emoji ? { type: "emoji", emoji: rest.emoji } : null;
+      if (!Object.keys(body).length) return;
+      const page: NotionPage = await this.client.request("PATCH", `/pages/${id}`, body);
+      this.columns.linkedProjectPages = this.columns.linkedProjectPages.map((p) => (p.id === id ? page : p));
+      this.columns.linkedProjects = this.columns.linkedProjects.map((p) =>
+        p.id === id ? { ...p, name: name ?? p.name, emoji: rest.emoji !== undefined ? rest.emoji : p.emoji } : p,
+      );
+    } else if ((col.kind === "select" || col.kind === "multi_select") && name !== undefined) {
+      await this.patchOptions(col.options.map((o) => ({ id: o.id, name: o.id === id ? name.trim() : o.name, color: o.color })));
+    }
   }
 
-  /** Moves the project page to the trash. Its tasks keep a dangling relation and show in Inbox. */
-  async trash(id: string): Promise<void> {
-    await this.client.trashPage(id);
+  /**
+   * A linked project page is the user's own data, so it only leaves TaskDB's list.
+   * A select option is removed from the column (Notion clears it from tasks).
+   */
+  async remove(id: string): Promise<void> {
+    const col = this.columns.project;
+    if (col.kind === "select" || col.kind === "multi_select") {
+      await this.patchOptions(col.options.filter((o) => o.id !== id).map(({ id, name, color }) => ({ id, name, color })));
+    } else {
+      this.saveLocal(id, { hidden: true });
+    }
   }
+
+  /** Projects hidden with Delete; shown again by Settings › Notion. */
+  hiddenCount(): number {
+    return Object.values(this.local()).filter((m) => m.hidden).length;
+  }
+
+  unhideAll(): void {
+    const all = this.local();
+    for (const m of Object.values(all)) delete m.hidden;
+    this.meta.set(JSON.stringify(all));
+  }
+
+  private onlyLocal(fields: Editable): Editable {
+    const out: Editable = { ...fields };
+    for (const key of Object.keys(PP) as Detail[]) if (this.backed(key)) delete out[key];
+    if (this.columns.project.kind === "relation") delete out.emoji;
+    return out;
+  }
+
+  private async patchOptions(options: { id?: string; name: string; color: string }[]): Promise<void> {
+    const col = this.columns.project;
+    const res: any = await this.client.request("PATCH", `/data_sources/${this.tasksDataSourceId}`, {
+      properties: { [col.name]: { [col.kind]: { options } } },
+    });
+    const updated = res?.properties?.[col.name];
+    this.columns.project = updated
+      ? describeColumn(col.name, updated)
+      : { ...col, options: options.map((o) => ({ id: o.id ?? o.name, name: o.name, color: o.color })) };
+  }
+}
+
+function notionColor(c: string | undefined): string {
+  return !c || c === "gray" ? "gray" : c;
 }

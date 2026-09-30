@@ -1,10 +1,10 @@
 import type { NotionClient } from "./client";
 import { P } from "./mapping";
-import { PP } from "./projects";
 
 export interface WorkspaceIds {
   tasksDataSourceId: string;
-  projectsDataSourceId: string;
+  /** Only in workspaces made by earlier versions; no longer used. */
+  projectsDataSourceId?: string;
 }
 
 export interface PageRef {
@@ -13,7 +13,6 @@ export interface PageRef {
 }
 
 const TASKS_TITLE = "TaskDB Tasks";
-const PROJECTS_TITLE = "TaskDB Projects";
 
 const titleOf = (obj: any): string =>
   (obj.title ?? (Object.values(obj.properties ?? {}) as any[]).find((p) => p?.type === "title")?.title ?? [])
@@ -36,10 +35,8 @@ export async function findExistingWorkspace(client: NotionClient): Promise<Works
     filter: { property: "object", value: "data_source" },
     page_size: 50,
   });
-  const byTitle = (t: string) => res.results.find((d: any) => titleOf(d) === t && !d.in_trash)?.id;
-  const tasks = byTitle(TASKS_TITLE);
-  const projects = byTitle(PROJECTS_TITLE);
-  return tasks && projects ? { tasksDataSourceId: tasks, projectsDataSourceId: projects } : null;
+  const tasks = res.results.find((d: any) => titleOf(d) === TASKS_TITLE && !d.in_trash)?.id;
+  return tasks ? { tasksDataSourceId: tasks } : null;
 }
 
 const option = (name: string, color: string) => ({ name, color });
@@ -47,19 +44,11 @@ const relation = (dataSourceId: string, syncedName: string) => ({
   relation: { data_source_id: dataSourceId, type: "dual_property", dual_property: { synced_property_name: syncedName } },
 });
 
-function projectProperties(): Record<string, unknown> {
-  return {
-    [PP.name]: { title: {} },
-    [PP.color]: { select: { options: PROJECT_COLORS.map((c) => option(c, c)) } },
-    [PP.archived]: { checkbox: {} },
-    [PP.order]: { number: {} },
-    [PP.favorite]: { checkbox: {} },
-    [PP.sections]: { rich_text: {} },
-    [PP.notes]: { rich_text: {} },
-  };
-}
-
-function taskProperties(projectsDataSourceId: string): Record<string, unknown> {
+/**
+ * Project and Person start as selects. Either can later become a relation to the user's own
+ * Projects / People database (in Notion, or Settings › Notion); TaskDB follows the column type.
+ */
+function taskProperties(): Record<string, unknown> {
   return {
     [P.title]: { title: {} },
     [P.done]: { checkbox: {} },
@@ -67,7 +56,7 @@ function taskProperties(projectsDataSourceId: string): Record<string, unknown> {
     [P.priority]: {
       select: { options: [option("p1", "red"), option("p2", "orange"), option("p3", "blue"), option("p4", "default")] },
     },
-    [P.projectId]: relation(projectsDataSourceId, "Tasks"),
+    [P.projectId]: { select: { options: [] } },
     [P.labels]: { multi_select: { options: [] } },
     [P.person]: { select: { options: [] } },
     [P.recurrence]: { rich_text: {} },
@@ -84,36 +73,23 @@ function taskProperties(projectsDataSourceId: string): Record<string, unknown> {
 
 /** Self-relations can only be added once the data source exists. */
 const taskSelfRelations = (tasksDs: string) => ({ [P.parentId]: relation(tasksDs, "Sub-items") });
-const projectSelfRelations = (projectsDs: string) => ({ [PP.parentId]: relation(projectsDs, "Sub-projects") });
 
-/** Creates the Projects and Tasks databases under `parentPageId`. Costs 4 requests. */
+/** Creates the one TaskDB database under `parentPageId`. Costs 2 requests. */
 export async function createWorkspace(client: NotionClient, parentPageId: string): Promise<WorkspaceIds> {
-  const projects: any = await client.request("POST", "/databases", {
-    parent: { type: "page_id", page_id: parentPageId },
-    title: [{ type: "text", text: { content: PROJECTS_TITLE } }],
-    icon: { type: "emoji", emoji: "📁" },
-    initial_data_source: { properties: projectProperties() },
-  });
-  const projectsDataSourceId: string = projects.data_sources[0].id;
-
   const tasks: any = await client.request("POST", "/databases", {
     parent: { type: "page_id", page_id: parentPageId },
     title: [{ type: "text", text: { content: TASKS_TITLE } }],
     icon: { type: "emoji", emoji: "✅" },
-    initial_data_source: { properties: taskProperties(projectsDataSourceId) },
+    initial_data_source: { properties: taskProperties() },
   });
   const tasksDataSourceId: string = tasks.data_sources[0].id;
-
   await client.request("PATCH", `/data_sources/${tasksDataSourceId}`, { properties: taskSelfRelations(tasksDataSourceId) });
-  await client.request("PATCH", `/data_sources/${projectsDataSourceId}`, {
-    properties: projectSelfRelations(projectsDataSourceId),
-  });
-  return { tasksDataSourceId, projectsDataSourceId };
+  return { tasksDataSourceId };
 }
 
 /**
  * Adds properties introduced by newer TaskDB versions to an existing workspace.
- * Costs 2 reads, plus a write only when something is missing.
+ * Costs 1 read, plus a write only when something is missing.
  */
 export async function upgradeWorkspace(client: NotionClient, ids: WorkspaceIds): Promise<string[]> {
   const added: string[] = [];
@@ -126,12 +102,41 @@ export async function upgradeWorkspace(client: NotionClient, ids: WorkspaceIds):
       added.push(...Object.keys(missing));
     }
   };
-  await ensure(ids.projectsDataSourceId, { ...projectProperties(), ...projectSelfRelations(ids.projectsDataSourceId) });
-  await ensure(ids.tasksDataSourceId, {
-    ...taskProperties(ids.projectsDataSourceId),
-    ...taskSelfRelations(ids.tasksDataSourceId),
-  });
+  // Existing columns are never changed, so a Project or Person column the user linked stays linked.
+  await ensure(ids.tasksDataSourceId, { ...taskProperties(), ...taskSelfRelations(ids.tasksDataSourceId) });
   return added;
 }
 
 export const PROJECT_COLORS = ["gray", "brown", "orange", "yellow", "green", "blue", "purple", "pink", "red"];
+
+/** Databases the integration can see, for linking the Project or Person column. */
+export async function listDataSources(client: NotionClient, exceptId?: string): Promise<PageRef[]> {
+  const res: any = await client.request("POST", "/search", {
+    filter: { property: "object", value: "data_source" },
+    page_size: 100,
+  });
+  return res.results
+    .filter((d: any) => !d.in_trash && d.id !== exceptId)
+    .map((d: any) => ({ id: d.id, title: titleOf(d) }))
+    .sort((a: PageRef, b: PageRef) => a.title.localeCompare(b.title));
+}
+
+/**
+ * Points the Project or Person column at another database, the way you'd do it by hand:
+ * the current column is kept as "<name> (old)" and a new relation column takes its name.
+ * Nothing is deleted. Costs 2–3 requests.
+ */
+export async function linkColumn(client: NotionClient, tasksDataSourceId: string, column: string, targetDataSourceId: string): Promise<void> {
+  const ds: any = await client.request("GET", `/data_sources/${tasksDataSourceId}`);
+  const props = ds.properties ?? {};
+  const current = props[column];
+  if (current?.type === "relation" && current.relation?.data_source_id === targetDataSourceId) return;
+  if (current) {
+    let backup = `${column} (old)`;
+    for (let n = 2; props[backup]; n++) backup = `${column} (old ${n})`;
+    await client.request("PATCH", `/data_sources/${tasksDataSourceId}`, { properties: { [column]: { name: backup } } });
+  }
+  await client.request("PATCH", `/data_sources/${tasksDataSourceId}`, {
+    properties: { [column]: { relation: { data_source_id: targetDataSourceId, type: "single_property", single_property: {} } } },
+  });
+}

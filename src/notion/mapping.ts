@@ -1,4 +1,5 @@
 import type { NotionPage } from "./client";
+import { Columns } from "./columns";
 import type { Priority, TaskFields } from "../types";
 
 /** Property names of the auto-created Tasks data source. */
@@ -39,6 +40,7 @@ const select = (name: string | null) => (name ? { name } : null);
 export function toProperties(
   fields: Partial<TaskFields>,
   resolveTask: (localId: string) => string | null,
+  columns: Columns = DEFAULT_COLUMNS,
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(fields) as [keyof TaskFields, any][]) {
@@ -59,9 +61,11 @@ export function toProperties(
       case "priority":
         out[name] = { select: select(`p${value}`) };
         break;
-      case "person":
-        out[name] = { select: select(value) };
+      case "person": {
+        const v = columns.writePerson(value);
+        if (v !== undefined) out[columns.person.name] = v;
         break;
+      }
       case "labels":
         out[name] = { multi_select: (value as string[]).map((n) => ({ name: n })) };
         break;
@@ -81,9 +85,11 @@ export function toProperties(
       case "duration":
         out[name] = { number: value };
         break;
-      case "projectId":
-        out[name] = { relation: value ? [{ id: value }] : [] };
+      case "projectId": {
+        const v = columns.writeProject(value);
+        if (v !== undefined) out[columns.project.name] = v;
         break;
+      }
       case "parentId": {
         const notionId = value ? resolveTask(value) : null;
         if (value && !notionId) throw new UnresolvedRelation(value);
@@ -94,6 +100,9 @@ export function toProperties(
   }
   return out;
 }
+
+/** Project as a relation, Person as a select: the shape of workspaces made by earlier versions. */
+const DEFAULT_COLUMNS = new Columns();
 
 export class UnresolvedRelation extends Error {
   constructor(readonly localId: string) {
@@ -107,7 +116,7 @@ const plain = (rich: any[] | undefined) => (rich ?? []).map((r) => r.plain_text 
  * Reads a page into task fields. Relation values are Notion page ids;
  * the engine maps parent ids back to local ids.
  */
-export function fromPage(page: NotionPage): TaskFields {
+export function fromPage(page: NotionPage, columns: Columns = DEFAULT_COLUMNS): TaskFields {
   const p = page.properties;
   const prio = Number(String(p[P.priority]?.select?.name ?? "p4").replace("p", ""));
   return {
@@ -115,9 +124,9 @@ export function fromPage(page: NotionPage): TaskFields {
     done: Boolean(p[P.done]?.checkbox),
     due: p[P.due]?.date?.start ?? null,
     priority: ([1, 2, 3, 4].includes(prio) ? prio : 4) as Priority,
-    projectId: p[P.projectId]?.relation?.[0]?.id ?? null,
+    projectId: columns.readProject(page),
     labels: (p[P.labels]?.multi_select ?? []).map((o: any) => o.name),
-    person: p[P.person]?.select?.name ?? null,
+    person: columns.readPerson(page),
     recurrence: plain(p[P.recurrence]?.rich_text) || null,
     parentId: p[P.parentId]?.relation?.[0]?.id ?? null,
     reminder: p[P.reminder]?.date?.start ?? null,

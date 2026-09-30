@@ -18,8 +18,29 @@ export class FakeNotion {
   pageSource = new Map<string, string>();
   /** Property schemas per data source (for GET/PATCH /data_sources/:id). */
   schemas = new Map<string, Record<string, unknown>>();
+  /** Data source titles for GET /data_sources/:id. */
+  titles = new Map<string, string>();
+
+  /** Like Notion: select values get their option's id, and unknown names become new options. */
+  private withOptionIds(dataSourceId: string, properties: Record<string, any>): Record<string, any> {
+    const schema: any = this.schemas.get(dataSourceId);
+    if (!schema) return properties;
+    const out: Record<string, any> = { ...properties };
+    const optionFor = (prop: string, kind: string, v: any) => {
+      const options: any[] = (schema[prop][kind].options ??= []);
+      let o = options.find((x) => (v.id && x.id === v.id) || x.name === v.name);
+      if (!o) options.push((o = { id: `opt-${++this.seq}`, name: v.name, color: "default" }));
+      return { id: o.id, name: o.name, color: o.color };
+    };
+    for (const [k, v] of Object.entries(properties)) {
+      if (schema[k]?.select && v?.select) out[k] = { select: optionFor(k, "select", v.select) };
+      if (schema[k]?.multi_select && v?.multi_select) out[k] = { multi_select: v.multi_select.map((x: any) => optionFor(k, "multi_select", x)) };
+    }
+    return out;
+  }
 
   addPage(properties: Record<string, any>, dataSourceId = "ds"): NotionPage {
+    properties = this.withOptionIds(dataSourceId, properties);
     const page: NotionPage = { id: `page-${++this.seq}`, last_edited_time: this.editedAt(), properties };
     this.pages.set(page.id, page);
     this.pageSource.set(page.id, dataSourceId);
@@ -28,7 +49,7 @@ export class FakeNotion {
 
   editPage(id: string, properties: Record<string, any>): void {
     const page = this.pages.get(id)!;
-    page.properties = { ...page.properties, ...properties };
+    page.properties = { ...page.properties, ...this.withOptionIds(this.pageSource.get(id) ?? "ds", properties) };
     page.last_edited_time = this.editedAt();
   }
 
@@ -55,11 +76,32 @@ export class FakeNotion {
     }
     const dsMatch = path.match(/^\/data_sources\/([^/]+)$/);
     if (dsMatch && init.method === "GET") {
-      return json({ id: dsMatch[1], properties: this.schemas.get(dsMatch[1]!) ?? {} });
+      return json({ id: dsMatch[1], title: [{ plain_text: this.titles.get(dsMatch[1]!) ?? dsMatch[1] }], properties: this.schemas.get(dsMatch[1]!) ?? {} });
     }
     if (dsMatch && init.method === "PATCH") {
-      this.schemas.set(dsMatch[1]!, { ...(this.schemas.get(dsMatch[1]!) ?? {}), ...body.properties });
-      return json({ id: dsMatch[1], properties: this.schemas.get(dsMatch[1]!) });
+      const schema: Record<string, any> = { ...(this.schemas.get(dsMatch[1]!) ?? {}) };
+      for (const [name, def] of Object.entries<any>(body.properties)) {
+        if (def?.name && Object.keys(def).length === 1 && schema[name]) {
+          // Rename: pages keep their values under the new name.
+          schema[def.name] = schema[name];
+          delete schema[name];
+          for (const [id, page] of this.pages) {
+            if (this.pageSource.get(id) === dsMatch[1] && name in page.properties) {
+              page.properties[def.name] = page.properties[name];
+              delete page.properties[name];
+            }
+          }
+          continue;
+        }
+        const type = Object.keys(def).find((k) => k !== "name") ?? "";
+        const next = { ...def, type };
+        if ((type === "select" || type === "multi_select") && def[type]?.options) {
+          next[type] = { options: def[type].options.map((o: any) => ({ color: "default", ...o, id: o.id ?? `opt-${++this.seq}` })) };
+        }
+        schema[name] = next;
+      }
+      this.schemas.set(dsMatch[1]!, schema);
+      return json({ id: dsMatch[1], properties: schema });
     }
     const pageMatch = path.match(/^\/pages\/(.+)$/);
     if (init.method === "PATCH" && pageMatch) {
@@ -79,7 +121,7 @@ export class FakeNotion {
         return json({
           results: [
             { id: "ds", title: [{ plain_text: "TaskDB Tasks" }] },
-            { id: "projects", title: [{ plain_text: "TaskDB Projects" }] },
+            ...[...this.titles].filter(([id]) => id !== "ds").map(([id, t]) => ({ id, title: [{ plain_text: t }] })),
           ],
         });
       }

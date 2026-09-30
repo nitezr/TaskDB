@@ -3,10 +3,13 @@ import { parseQuickAdd } from "../core/quickAdd";
 import type { ImportedProject } from "../core/todoistCsv";
 import { nextDue } from "../core/recurrence";
 import { NotionClient } from "../notion/client";
-import { type Project, ProjectsApi } from "../notion/projects";
+import { Columns } from "../notion/columns";
+import { type Project, ProjectSource } from "../notion/projects";
 import {
   createWorkspace,
   findExistingWorkspace,
+  linkColumn,
+  listDataSources,
   listSharedPages,
   type PageRef,
   PROJECT_COLORS,
@@ -129,7 +132,10 @@ export class AppController {
   private client: NotionClient | null = null;
   private engine: SyncEngine | null = null;
   private scheduler: SyncScheduler | null = null;
-  private projectsApi: ProjectsApi | null = null;
+  private projectSource: ProjectSource | null = null;
+  /** Shape of the Project and Person columns (select, multi-select or a linked database). */
+  columns = new Columns();
+  private tasksDataSourceId: string | null = null;
   private listeners = new Set<() => void>();
   private version = 0;
   private notified = new Set<string>();
@@ -171,11 +177,18 @@ export class AppController {
 
   private start(token: string, ids: WorkspaceIds): void {
     this.client = new NotionClient({ token, fetch: this.platform.fetch });
-    this.projectsApi = new ProjectsApi(this.client, ids.projectsDataSourceId);
+    this.tasksDataSourceId = ids.tasksDataSourceId;
+    this.columns = Columns.fromJSON(this.store.getMeta("columns"));
+    this.projectSource = new ProjectSource(this.client, ids.tasksDataSourceId, this.columns, {
+      get: () => this.store.getMeta("projectMeta"),
+      set: (v) => this.store.setMeta("projectMeta", v),
+    });
     this.engine = new SyncEngine({
       client: this.client,
       store: this.store,
       tasksDataSourceId: ids.tasksDataSourceId,
+      columns: this.columns,
+      onColumnsChanged: () => this.syncProjects(),
       onChange: () => {
         this.lastSyncAt = Date.now();
         this.emit();
@@ -183,14 +196,13 @@ export class AppController {
     });
     this.scheduler = new SyncScheduler(this.engine);
     this.projects = (JSON.parse(this.store.getMeta("projects") ?? "[]") as Project[]).map(withProjectDefaults);
-    // Older workspaces get the columns newer versions need before any change is pushed; then
-    // syncing starts and projects load. Offline, syncing starts anyway and retries as usual.
+    // Older workspaces get the columns newer versions need, and TaskDB learns what the Project
+    // and Person columns are, before any change is pushed. Offline, syncing starts anyway with
+    // the cached column shapes and retries as usual.
     void upgradeWorkspace(this.client, ids)
       .catch((e) => (this.lastError = e instanceof Error ? e.message : String(e)))
-      .finally(() => {
-        this.scheduler?.start();
-        void this.refreshProjects();
-      });
+      .then(() => this.refreshProjects())
+      .finally(() => this.scheduler?.start());
     this.timers.push(setInterval(() => void this.refreshProjects(), PROJECT_REFRESH_MS));
     this.timers.push(setInterval(() => this.checkReminders(), 30_000));
     this.timers.push(setInterval(() => this.updateActivity(), 60_000));
@@ -270,8 +282,9 @@ export class AppController {
     return uniqueSorted(this.tasks().flatMap((t) => t.labels));
   }
 
+  /** Everyone the Person column offers (a linked People database, or the select's options), plus anyone used or added. */
   people(): string[] {
-    return uniqueSorted([...this.tasks().map((t) => t.person ?? ""), ...this.extraPeople()].filter(Boolean));
+    return uniqueSorted([...this.tasks().map((t) => t.person ?? ""), ...this.extraPeople(), ...this.columns.personNames()].filter(Boolean));
   }
 
   private extraPeople(): string[] {
@@ -563,16 +576,57 @@ export class AppController {
 
   // ---- Projects ----
 
+  /** Re-reads the Project and Person columns and whatever they link to. */
   async refreshProjects(): Promise<void> {
-    if (!this.projectsApi) return;
+    if (!this.client || !this.tasksDataSourceId) return;
     try {
-      this.projects = await this.projectsApi.list();
-      this.saveProjectsCache();
-      this.lastError = null;
+      await this.columns.refresh(this.client, this.tasksDataSourceId);
+      this.lastError = this.columns.problems.project ?? this.columns.problems.person ?? null;
     } catch (e) {
       this.lastError = e instanceof Error ? e.message : String(e);
     }
+    this.syncProjects();
+  }
+
+  /** Rebuilds the project list from the last column refresh (no requests). */
+  private syncProjects(): void {
+    if (!this.projectSource) return;
+    this.store.setMeta("columns", JSON.stringify(this.columns));
+    this.projects = this.projectSource.list().map(withProjectDefaults);
+    this.saveProjectsCache();
     this.emit();
+  }
+
+  // ---- Project and Person columns (Settings › Notion) ----
+
+  /** What the Project and Person columns are, for Settings. */
+  columnInfo() {
+    return {
+      project: { name: this.columns.project.name, kind: this.columns.project.kind, text: this.columns.describe("project"), problem: this.columns.problems.project },
+      person: { name: this.columns.person.name, kind: this.columns.person.kind, text: this.columns.describe("person"), problem: this.columns.problems.person },
+      hiddenProjects: this.projectSource?.hiddenCount() ?? 0,
+    };
+  }
+
+  /** Databases TaskDB can see, to link a column to. */
+  async databases(): Promise<{ id: string; title: string }[]> {
+    if (!this.client) return [];
+    return listDataSources(this.client, this.tasksDataSourceId ?? undefined);
+  }
+
+  /** Links the Project or Person column to another database. The old column stays as "… (old)". */
+  async linkColumn(which: "project" | "person", dataSourceId: string): Promise<void> {
+    if (!this.client || !this.tasksDataSourceId || !this.engine) return;
+    await this.engine.push();
+    await linkColumn(this.client, this.tasksDataSourceId, this.columns[which].name, dataSourceId);
+    await this.refreshProjects();
+    // Every task's project or person now reads from the new column.
+    await this.engine.reconcile();
+  }
+
+  showHiddenProjects(): void {
+    this.projectSource?.unhideAll();
+    this.syncProjects();
   }
 
   project(id: string | null): Project | undefined {
@@ -600,11 +654,9 @@ export class AppController {
     if (!this.guard()) throw new Error("TaskDB is read-only until you activate a license.");
     const order = this.projects.reduce((m, p) => Math.max(m, p.order), 0) + 1;
     const color = fields.color ?? PROJECT_COLORS[(this.projects.length + 5) % PROJECT_COLORS.length]!;
-    const project = await this.projectsApi!.create({ order, color, sections: [], ...fields });
-    this.projects = [...this.projects, project];
-    this.saveProjectsCache();
-    this.emit();
-    return project;
+    const project = await this.projectSource!.create({ order, color, sections: [], ...fields });
+    this.syncProjects();
+    return this.project(project.id) ?? project;
   }
 
   async updateProject(id: string, fields: Partial<Omit<Project, "id">>): Promise<void> {
@@ -613,7 +665,8 @@ export class AppController {
     this.saveProjectsCache();
     this.emit();
     try {
-      await this.projectsApi!.update(id, fields);
+      await this.projectSource!.update(id, fields);
+      this.store.setMeta("columns", JSON.stringify(this.columns));
     } catch (e) {
       this.lastError = e instanceof Error ? e.message : String(e);
       void this.refreshProjects();
@@ -649,7 +702,11 @@ export class AppController {
     await this.updateProject(id, { parentId, order });
   }
 
-  /** Deletes the project and its tasks (from Notion too). Sub-projects move up a level. */
+  /**
+   * Deletes the project's tasks (from Notion too) and removes the project: a select option is
+   * removed from the column; a linked project page stays in its database and just leaves TaskDB.
+   * Sub-projects move up a level.
+   */
   async deleteProject(id: string): Promise<void> {
     if (!this.guard()) return;
     const project = this.project(id);
@@ -663,7 +720,8 @@ export class AppController {
     this.projects = this.projects.filter((p) => p.id !== id);
     this.saveProjectsCache();
     this.emit();
-    await this.projectsApi!.trash(id);
+    await this.projectSource!.remove(id);
+    this.syncProjects();
   }
 
   private saveProjectsCache(): void {
@@ -806,6 +864,22 @@ export class AppController {
   renamePerson(from: string, to: string): void {
     const clean = to.trim();
     if (!clean || clean === from) return;
+    if (this.client && (this.columns.person.kind === "relation")) {
+      // A linked person is one page: rename it once, and tasks follow without being rewritten.
+      void this.columns
+        .renamePerson(this.client, from, clean)
+        .then((done) => {
+          if (!done) return;
+          for (const t of this.tasks().filter((t) => t.person === from)) this.store.putTask({ ...t, person: clean });
+          this.store.setMeta("columns", JSON.stringify(this.columns));
+          this.emit();
+        })
+        .catch((e) => {
+          this.lastError = e instanceof Error ? e.message : String(e);
+          this.emit();
+        });
+      return;
+    }
     this.transaction(() => {
       for (const t of this.tasks().filter((t) => t.person === from)) this.updateTask(t.id, { person: clean });
     }, `Renamed ${from}`);

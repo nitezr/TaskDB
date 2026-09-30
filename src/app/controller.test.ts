@@ -59,7 +59,7 @@ describe("AppController", () => {
     expect(app.tasks().map((t) => t.title)).toEqual(["From Notion"]);
   });
 
-  it("creates an unknown #project in Notion during quick add", async () => {
+  it("creates an unknown #project as a Project option during quick add", async () => {
     const { app, notion } = setup();
     await ready(app);
     const task = await app.quickAdd("Pitch deck #Fundraising p1");
@@ -68,7 +68,9 @@ describe("AppController", () => {
     expect(project).toBeDefined();
     expect(task?.projectId).toBe(project!.id);
     const page = notion.pages.get(app.task(task!.id)!.notionId!)!;
-    expect(page.properties[P.projectId].relation).toEqual([{ id: project!.id }]);
+    expect(page.properties[P.projectId].select).toMatchObject({ id: project!.id, name: "Fundraising" });
+    // One database only: no Projects database is created.
+    expect(notion.requests.some((r) => r.path === "/databases")).toBe(false);
   });
 
   it("moves a recurring task to its next date instead of completing it", async () => {
@@ -182,8 +184,8 @@ describe("AppController", () => {
   it("adds missing Notion columns to an older workspace", async () => {
     const { app, notion } = setup();
     await ready(app);
-    expect(Object.keys(notion.schemas.get("ds") ?? {})).toEqual(expect.arrayContaining(["Notes", "Section", "Parent item"]));
-    expect(Object.keys(notion.schemas.get("projects") ?? {})).toEqual(expect.arrayContaining(["Favorite", "Sections", "Parent project"]));
+    expect(Object.keys(notion.schemas.get("ds") ?? {})).toEqual(expect.arrayContaining(["Notes", "Section", "Parent item", "Project", "Person"]));
+    expect(app.columnInfo().project.kind).toBe("select");
   });
 
   it("reorders and nests projects by drag, and refuses to nest a project in itself", async () => {
@@ -204,13 +206,78 @@ describe("AppController", () => {
 
     await run(app.moveProject(b.id, a.id));
     expect(names()).toEqual(["C", "A", "-B"]);
-    expect(notion.pages.get(b.id)!.properties["Parent project"].relation).toEqual([{ id: a.id }]);
+    expect(app.project(b.id)?.parentId).toBe(a.id);
 
     await run(app.moveProject(a.id, b.id)); // B is inside A
     expect(names()).toEqual(["C", "A", "-B"]);
 
     await run(app.moveProject(b.id, null, null));
     expect(names()).toEqual(["C", "A", "B"]);
+  });
+
+  it("uses a Project and Person column linked to the user's own databases", async () => {
+    const { app, notion } = setup();
+    notion.titles.set("products", "Products");
+    notion.titles.set("people", "People");
+    notion.schemas.set("products", { Name: { type: "title", title: {} }, Notes: { type: "rich_text", rich_text: {} } });
+    notion.schemas.set("people", { Name: { type: "title", title: {} } });
+    notion.schemas.set("ds", {
+      Project: { type: "relation", relation: { data_source_id: "products" } },
+      Person: { type: "relation", relation: { data_source_id: "people" } },
+      "Project (old)": { type: "relation", relation: { data_source_id: "projects" } },
+    });
+    const wafa = notion.addPage({ Name: title("WAFA") }, "products");
+    notion.pages.get(wafa.id)!.icon = { type: "emoji", emoji: "🧕" };
+    const amelia = notion.addPage({ Name: title("Amelia") }, "people");
+    notion.addPage({ [P.title]: title("Check with Amelia"), Project: { relation: [{ id: wafa.id }] }, Person: { relation: [{ id: amelia.id }] } });
+    await ready(app);
+
+    expect(app.projects.map((p) => [p.name, p.emoji])).toEqual([["WAFA", "🧕"]]);
+    expect(app.tasks()[0]).toMatchObject({ projectId: wafa.id, person: "Amelia" });
+    expect(app.people()).toContain("Amelia");
+    expect(app.columnInfo().project.text).toBe("Linked to “Products”");
+
+    // Notes live in the linked page (it has a Notes property); nesting stays on this Mac.
+    await app.updateProject(wafa.id, { notes: "Ship v2", parentId: null });
+    await settle();
+    expect(notion.pages.get(wafa.id)!.properties.Notes.rich_text[0].text.content).toBe("Ship v2");
+
+    // A new person gets a page in the People database; the task links to it.
+    const t = await app.quickAdd("Call Ravi #WAFA");
+    app.updateTask(t!.id, { person: "Ravi" });
+    await settle();
+    const ravi = [...notion.pages.values()].find((p) => notion.pageSource.get(p.id) === "people" && p.properties.Name.title[0].text?.content === "Ravi");
+    expect(ravi).toBeDefined();
+    const page = notion.pages.get(app.task(t!.id)!.notionId!)!;
+    expect(page.properties.Project.relation).toEqual([{ id: wafa.id }]);
+    expect(page.properties.Person.relation).toEqual([{ id: ravi!.id }]);
+
+    // Deleting a linked project never trashes the user's page.
+    await app.deleteProject(wafa.id);
+    await settle();
+    expect(notion.pages.get(wafa.id)!.in_trash).toBeFalsy();
+    expect(app.projects).toEqual([]);
+  });
+
+  it("links a column to another database and keeps the old one as a backup", async () => {
+    const { app, notion } = setup();
+    notion.titles.set("people", "People");
+    notion.schemas.set("people", { Name: { type: "title", title: {} } });
+    const sam = notion.addPage({ Name: title("Sam") }, "people");
+    await ready(app);
+    app.createTask({ title: "Ping", person: "Sam" });
+    await settle();
+    expect(app.columnInfo().person.kind).toBe("select");
+
+    const linking = app.linkColumn("person", "people");
+    await settle();
+    await linking;
+    const schema: any = notion.schemas.get("ds");
+    expect(schema["Person (old)"].type).toBe("select");
+    expect(schema.Person.type).toBe("relation");
+    expect(app.columnInfo().person.text).toBe("Linked to “People”");
+    expect(app.people()).toContain("Sam");
+    expect(sam.id).toBeTruthy();
   });
 
   it("starts the trial on first launch and keeps it across restarts", async () => {

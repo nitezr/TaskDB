@@ -4024,3 +4024,54 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 .toast-icon .prio-1 { color: #ff7a6b; }
 .toast-icon .prio-2 { color: #f5a742; }
 .toast-icon .prio-3 { color: #6aa2ff; }
+
+/* Settings › Notion: Project and Person columns */
+.column-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+.column-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+}
+.column-row + .column-row,
+.db-picker + .column-row {
+  border-top: 1px solid var(--line);
+}
+.column-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+.db-picker {
+  padding: 8px 12px 12px;
+  background: var(--hover, rgba(0, 0, 0, 0.03));
+  border-top: 1px solid var(--line);
+}
+.db-picker input {
+  width: 100%;
+  margin-bottom: 6px;
+}
+.db-list {
+  max-height: 160px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.db-list button {
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 13px;
+  color: inherit;
+  cursor: pointer;
+}
+.db-list button:hover {
+  background: var(--accent-soft, rgba(0, 0, 0, 0.06));
+}

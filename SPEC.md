@@ -16,8 +16,8 @@ Sold as a yearly license. Nothing is hosted by the seller.
 | Store | Lemon Squeezy (subscriptions, license keys, VAT) |
 | Signing | Phase 1: ad-hoc signed test DMG. Apple Developer account ($99/yr) before public launch |
 | Hierarchy | Project → Task → Sub-task |
-| People | Single-select property on Task |
-| Notion setup | App auto-creates the databases on first run |
+| People | Person column on Task: select, multi-select, Notion people, or a relation to the user's own People database |
+| Notion setup | App auto-creates one database (TaskDB Tasks) on first run |
 | Name | TaskDB |
 
 ## v1 features
@@ -41,7 +41,7 @@ Sold as a yearly license. Nothing is hosted by the seller.
 - **Notion auth:** the buyer creates an internal integration and pastes its token
   - Public OAuth would need a server (client secret + redirect), so it's excluded
   - Token is stored in the macOS Keychain
-- **Setup flow:** paste token → share one parent page with the integration → app creates the Tasks and Projects databases
+- **Setup flow:** paste token → share one parent page with the integration → app creates the TaskDB Tasks database
 - **Sync:** local-first, designed around Notion's rate limit — see next section
 - **License:** Lemon Squeezy License API (activate / validate)
   - Checked at launch and daily
@@ -59,26 +59,36 @@ Sold as a yearly license. Nothing is hosted by the seller.
 
 ## Notion schema (auto-created)
 
-**Tasks**
+One database, **TaskDB Tasks**. There is no separate Projects database.
+
 - Name (title)
 - Done (checkbox)
 - Due (date)
 - Priority (select p1–p4)
-- Project (relation → Projects)
+- Project (select by default; see below)
 - Labels (multi-select)
-- Person (select)
+- Person (select by default; see below)
 - Recurrence (text)
 - Parent item / Sub-items (self-relation)
 - Reminder (date)
 - Order (number)
 - Completed at (date)
+- Notes (text), Section (select), Deadline (date), Duration (min) (number), When (select)
 
-**Projects**
-- Name
-- Color (select)
-- Archived (checkbox)
-- Order (number)
-- Tasks (relation)
+**Project and Person columns are flexible.** TaskDB reads the column type and uses whatever it holds:
+
+| Column type | Project | Person |
+|---|---|---|
+| Select | Each option is a project | Each option is a person |
+| Multi-select | First value is used | First value is used |
+| Relation to your own database | Each page is a project (title and icon) | Each page is a person; `+Name` for someone new adds a page |
+| Notion people | — | Workspace members |
+
+- Code: `src/notion/columns.ts` (detection, reading, writing), `src/notion/projects.ts` (project list)
+- Settings › Notion shows each column's type and can link it to another database. The current column is renamed "… (old)" and a new relation column takes its name; nothing is deleted.
+- A linked database must be shared with the integration, or TaskDB can't read its names (Settings shows a hint).
+- Deleting a linked project only hides it in TaskDB; the page stays in the user's database. Deleting a select project removes the option.
+- Project details with no Notion home (order, nesting, colour, favourite, sections, notes) are kept on the Mac. When a linked database has matching columns (Color, Order, Favorite, Parent project, Sections, Notes), TaskDB uses them instead.
 
 Saved filters, extra People and settings are kept locally (not in Notion) in v1.
 

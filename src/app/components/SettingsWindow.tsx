@@ -412,9 +412,10 @@ function NotionTab() {
         {status.lastSyncAt ? ` · last activity ${new Date(status.lastSyncAt).toLocaleTimeString()}` : ""}
       </p>
       {app.lastError && <p className="small error-text">Last error: {app.lastError}</p>}
+      <ColumnsSection />
       <div className="row">
         <button className="ghost" onClick={() => void app.refreshProjects()}>
-          Refresh projects
+          Refresh from Notion
         </button>
         <span className="grow" />
         <button
@@ -429,6 +430,100 @@ function NotionTab() {
         </button>
       </div>
     </>
+  );
+}
+
+/**
+ * Project and Person are plain columns in the one TaskDB database. Each can stay a select or be
+ * linked to the user's own Projects / People database; TaskDB uses whatever the column shows.
+ */
+function ColumnsSection() {
+  const app = useApp();
+  const info = app.columnInfo();
+  const [picking, setPicking] = useState<"project" | "person" | null>(null);
+  const [dbs, setDbs] = useState<{ id: string; title: string }[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const open = (which: "project" | "person") => {
+    setPicking(which);
+    setError(null);
+    if (!dbs) void app.databases().then(setDbs, (e) => setError(String(e?.message ?? e)));
+  };
+  const link = async (which: "project" | "person", db: { id: string; title: string }) => {
+    const col = info[which].name;
+    const ok = await askConfirm(`Link ${col} to “${db.title}”?`, "Link", {
+      detail: `TaskDB renames the current ${col} column to “${col} (old)” and adds a new ${col} column linked to “${db.title}”. Nothing is deleted. Tasks start empty in the new column; fill it in Notion or in TaskDB.`,
+    });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      await app.linkColumn(which, db.id);
+      setPicking(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const row = (which: "project" | "person", label: string) => (
+    <div className="column-row" key={which}>
+      <div className="grow">
+        <div className="column-name">{label}</div>
+        <div className={`small ${info[which].kind === "unsupported" || info[which].kind === "missing" ? "error-text" : "muted"}`}>{info[which].text}</div>
+        {info[which].problem && <div className="small error-text">{info[which].problem}</div>}
+      </div>
+      <button className="ghost" disabled={busy} onClick={() => (picking === which ? setPicking(null) : open(which))}>
+        {info[which].kind === "relation" ? "Change…" : "Link to a database…"}
+      </button>
+    </div>
+  );
+
+  return (
+    <>
+      <h4>Project and Person</h4>
+      <p className="caption" style={{ marginTop: 0 }}>
+        TaskDB keeps everything in one database. The Project and Person columns can be a select, a multi-select, or linked to your own Projects and People
+        databases; TaskDB shows whatever they hold.
+      </p>
+      <div className="column-card">
+        {row("project", "Project")}
+        {picking === "project" && <DbPicker dbs={dbs} busy={busy} onPick={(db) => void link("project", db)} />}
+        {row("person", "Person")}
+        {picking === "person" && <DbPicker dbs={dbs} busy={busy} onPick={(db) => void link("person", db)} />}
+      </div>
+      {busy && <p className="small muted">Linking… then re-reading every task from Notion.</p>}
+      {error && <p className="small error-text">{error}</p>}
+      <p className="caption">A linked database must be shared with TaskDB in Notion (••• › Connections). Order, nesting, colours and sections are kept on this Mac unless the linked database has matching columns.</p>
+      {info.hiddenProjects > 0 && (
+        <p className="caption">
+          {info.hiddenProjects} deleted project{info.hiddenProjects === 1 ? " is" : "s are"} hidden from TaskDB.{" "}
+          <button className="link small" onClick={() => app.showHiddenProjects()}>
+            Show again
+          </button>
+        </p>
+      )}
+    </>
+  );
+}
+
+function DbPicker({ dbs, busy, onPick }: { dbs: { id: string; title: string }[] | null; busy: boolean; onPick: (db: { id: string; title: string }) => void }) {
+  const [q, setQ] = useState("");
+  if (!dbs) return <p className="small muted db-picker">Loading databases…</p>;
+  const shown = dbs.filter((d) => d.title.toLowerCase().includes(q.toLowerCase()));
+  return (
+    <div className="db-picker">
+      <input autoFocus placeholder="Search databases shared with TaskDB…" value={q} onChange={(e) => setQ(e.target.value)} />
+      <div className="db-list">
+        {shown.map((d) => (
+          <button key={d.id} disabled={busy} onClick={() => onPick(d)}>
+            {d.title}
+          </button>
+        ))}
+        {!shown.length && <p className="small muted">No shared databases match. Share one with TaskDB in Notion first.</p>}
+      </div>
+    </div>
   );
 }
 

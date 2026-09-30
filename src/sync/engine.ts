@@ -1,4 +1,5 @@
 import { NotionClient, NotionError, type NotionPage } from "../notion/client";
+import { Columns } from "../notion/columns";
 import { fromPage, toProperties, UnresolvedRelation } from "../notion/mapping";
 import type { Store } from "../store/store";
 import { DEFAULT_FIELDS, type Task, type TaskFields } from "../types";
@@ -19,6 +20,10 @@ export interface SyncEngineOptions {
   tasksDataSourceId: string;
   newId?: () => string;
   onChange?: () => void;
+  /** Shape of the Project and Person columns; defaults to the original schema. */
+  columns?: Columns;
+  /** Called after a pulled task made TaskDB re-read the columns (new project or person). */
+  onColumnsChanged?: () => void;
 }
 
 /**
@@ -39,7 +44,10 @@ export class SyncEngine {
   constructor(private readonly opts: SyncEngineOptions) {
     this.outbox = new Outbox(opts.store.loadOutbox(), (ops) => opts.store.saveOutbox(ops));
     this.newId = opts.newId ?? (() => `local-${crypto.randomUUID()}`);
+    this.columns = opts.columns ?? new Columns();
   }
+
+  readonly columns: Columns;
 
   // ---- Local writes (instant, optimistic) ----
 
@@ -110,10 +118,12 @@ export class SyncEngine {
           // workspace may still be missing.
           const fields = { ...op.fields };
           for (const k of OPTIONAL_ON_CREATE) if (fields[k] == null) delete fields[k];
-          const page = await client.createPage(tasksDataSourceId, toProperties(fields, this.resolveTask));
+          if (fields.person) await this.columns.ensurePerson(client, fields.person);
+          const page = await client.createPage(tasksDataSourceId, toProperties(fields, this.resolveTask, this.columns));
           this.applyPushed(op.taskId, page);
         } else if (task?.notionId) {
-          const page = await client.updatePage(task.notionId, toProperties(op.fields, this.resolveTask));
+          if (op.fields.person) await this.columns.ensurePerson(client, op.fields.person);
+          const page = await client.updatePage(task.notionId, toProperties(op.fields, this.resolveTask, this.columns));
           this.applyPushed(op.taskId, page);
         }
         this.outbox.complete(op.seq);
@@ -128,7 +138,7 @@ export class SyncEngine {
           this.outbox.release();
           return;
         }
-        // Permanent rejection (validation, permissions): drop the op, flag the task.
+        // Permanent rejection (validation, permissions, a person Notion can't link): drop the op, flag the task.
         this.outbox.complete(op.seq);
         if (task) store.putTask({ ...task, syncError: e instanceof Error ? e.message : String(e) });
         this.changed();
@@ -159,6 +169,16 @@ export class SyncEngine {
     return this.pulling;
   }
 
+  /** A task pointing at a project or person TaskDB hasn't loaded makes it re-read the columns first. */
+  private async learn(page: NotionPage): Promise<void> {
+    if (!this.columns.hasUnknown(page)) return;
+    try {
+      if (await this.columns.refresh(this.opts.client, this.opts.tasksDataSourceId, true)) this.opts.onColumnsChanged?.();
+    } catch {
+      /* names catch up on the next refresh */
+    }
+  }
+
   private async fetchChanges(): Promise<void> {
     const { store } = this.opts;
     const cursor = store.getMeta("pullCursor");
@@ -173,6 +193,7 @@ export class SyncEngine {
     let anyChange = false;
     for await (const page of this.queryAll(filter)) {
       if (page.last_edited_time > maxSeen) maxSeen = page.last_edited_time;
+      await this.learn(page);
       anyChange = this.applyRemote(page) || anyChange;
     }
     if (maxSeen) store.setMeta("pullCursor", maxSeen);
@@ -195,6 +216,7 @@ export class SyncEngine {
     for await (const page of this.queryAll(undefined)) {
       seen.add(page.id);
       if (page.last_edited_time > maxSeen) maxSeen = page.last_edited_time;
+      await this.learn(page);
       anyChange = this.applyRemote(page) || anyChange;
     }
     const pending = this.outbox.pendingIds();
@@ -238,7 +260,7 @@ export class SyncEngine {
     if (local && this.outbox.hasPending(local.id)) return false;
     if (local?.remoteEditedAt && page.last_edited_time < local.remoteEditedAt) return false;
 
-    const remote = fromPage(page);
+    const remote = fromPage(page, this.columns);
     // Remote-origin tasks use the Notion id as their local id, so unknown parents resolve later.
     if (remote.parentId) remote.parentId = store.getTaskByNotionId(remote.parentId)?.id ?? remote.parentId;
 

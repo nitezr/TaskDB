@@ -41,6 +41,24 @@ function seed(n: FakeNotion) {
   const date = (s: string | null) => ({ date: s ? { start: s } : null });
   const rel = (id: string | null | undefined) => ({ relation: id ? [{ id }] : [] });
 
+  // One TaskDB database whose Project column links to a Projects database (the setup most
+  // Notion users have); Person is a plain select.
+  n.titles.set("ds", "TaskDB Tasks");
+  n.titles.set("projects", "Projects");
+  n.schemas.set("projects", {
+    Name: { type: "title", title: {} },
+    Color: { type: "select", select: { options: [] } },
+    Order: { type: "number", number: {} },
+    Favorite: { type: "checkbox", checkbox: {} },
+    "Parent project": { type: "relation", relation: { data_source_id: "projects" } },
+    Sections: { type: "rich_text", rich_text: {} },
+    Notes: { type: "rich_text", rich_text: {} },
+  });
+  n.schemas.set("ds", {
+    Project: { type: "relation", relation: { data_source_id: "projects" } },
+    Person: { type: "select", select: { options: [] } },
+  });
+
   // Mirrors Remit's demo workspace: two groups of projects, sections, favourites.
   let order = 0;
   const project = (name: string, o: { color: string; emoji?: string; parent?: string; sections?: string[]; favorite?: boolean; notes?: string }) => {
