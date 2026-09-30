@@ -57,5 +57,5 @@ TaskDB competes on speed and taste for people who keep their life in Notion. The
 
 ## Next candidates
 1. Calendar events next to tasks in Today and the calendar (EventKit).
-3. Menu-bar mini window listing today's tasks, with quick complete.
-4. Several reminders per task.
+2. Menu-bar mini window listing today's tasks, with quick complete.
+3. Several reminders per task.
