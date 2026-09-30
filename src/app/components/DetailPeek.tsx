@@ -8,6 +8,24 @@ import { useApp } from "../hooks";
 import { CalendarSmallIcon, ChevronDownIcon, ChevronUpIcon, CloseIcon, FlagIcon, HashIcon, TrashIcon } from "../icons";
 import { type Anchor, anchorOf } from "../ui";
 import { DatePicker } from "./DatePicker";
+import { Markdown, toggleChecklistLine } from "../markdown";
+
+const TIMED_REMINDERS: [string, string][] = [
+  ["", "At the due time"],
+  ["m5", "5 minutes before"],
+  ["m15", "15 minutes before"],
+  ["m30", "30 minutes before"],
+  ["m60", "1 hour before"],
+  ["m1440", "1 day before"],
+];
+const DAY_REMINDERS: [string, string][] = [
+  ["", "None"],
+  ["d0", "On the day, 9 AM"],
+  ["d1", "Day before, 9 AM"],
+  ["d7", "Week before, 9 AM"],
+];
+const customLabel = (r: string) =>
+  parseDue(r).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 
 const short = (d: string) => parseDue(d).toLocaleDateString(undefined, { day: "numeric", month: "short" });
 import { QuickAdd } from "./QuickAdd";
@@ -42,12 +60,16 @@ export function DetailPeek({ id, onClose, onOpen, prevId, nextId, onComplete }: 
   const [tagQuery, setTagQuery] = useState("");
   const [customRepeat, setCustomRepeat] = useState<string | null>(null);
   const [addingSub, setAddingSub] = useState(false);
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [customReminder, setCustomReminder] = useState(false);
   const [picker, setPicker] = useState<{ kind: "due" | "deadline"; anchor: Anchor } | null>(null);
 
   useEffect(() => {
     setTitle(task?.title ?? "");
     setNotes(task?.notes ?? "");
     setCustomRepeat(null);
+    setEditingNotes(false);
+    setCustomReminder(false);
     setTagQuery("");
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -84,6 +106,21 @@ export function DetailPeek({ id, onClose, onOpen, prevId, nextId, onComplete }: 
   const parent = task.parentId ? app.task(task.parentId) : undefined;
   const sections = task.projectId ? app.sections(task.projectId) : [];
   const timed = task.due ? hasTime(task.due) : false;
+  // Reminders are offered relative to the due time (Todoist): "15 min before", "Day before, 9 AM".
+  const dueAt = task.due ? parseDue(task.due) : null;
+  const reminderFrom = (v: string): string | null => {
+    if (!v || !dueAt) return null;
+    if (v.startsWith("m")) return toLocalIso(new Date(dueAt.getTime() - Number(v.slice(1)) * 60_000));
+    const d = new Date(dueAt);
+    d.setDate(d.getDate() - Number(v.slice(1)));
+    d.setHours(9, 0, 0, 0);
+    return toLocalIso(d);
+  };
+  const reminderChoice = (() => {
+    if (!task.reminder) return "";
+    for (const [v] of timed ? TIMED_REMINDERS : DAY_REMINDERS) if (v && reminderFrom(v) === toLocalIso(parseDue(task.reminder))) return v;
+    return "custom";
+  })();
   const repeatKnown = REPEATS.some(([v]) => v === (task.recurrence ?? ""));
   const allTags = [...new Set([...app.labels(), ...task.labels])];
   const shownTags = allTags.filter((l) => l.toLowerCase().includes(tagQuery.toLowerCase()));
@@ -172,13 +209,32 @@ export function DetailPeek({ id, onClose, onOpen, prevId, nextId, onComplete }: 
                 }}
               />
             </div>
-            <textarea
-              className="peek-notes"
-              placeholder="Description"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              onBlur={() => notes !== (task.notes ?? "") && update({ notes: notes.trim() || null })}
-            />
+            {notes && !editingNotes ? (
+              // Rendered Markdown; click anywhere but a link or checkbox to edit.
+              <div className="peek-notes peek-notes-view" onClick={() => setEditingNotes(true)} title="Click to edit">
+                <Markdown
+                  source={notes}
+                  onOpenUrl={(url) => void app.platform.openUrl(url)}
+                  onToggle={(line) => {
+                    const next = toggleChecklistLine(notes, line);
+                    setNotes(next);
+                    update({ notes: next });
+                  }}
+                />
+              </div>
+            ) : (
+              <textarea
+                className="peek-notes"
+                placeholder="Description — Markdown works: **bold**, - lists, - [ ] checklists, links"
+                value={notes}
+                autoFocus={editingNotes}
+                onChange={(e) => setNotes(e.target.value)}
+                onBlur={() => {
+                  if (notes !== (task.notes ?? "")) update({ notes: notes.trim() || null });
+                  setEditingNotes(false);
+                }}
+              />
+            )}
 
             {!task.parentId && (
               <div className="subtasks">
@@ -373,12 +429,30 @@ export function DetailPeek({ id, onClose, onOpen, prevId, nextId, onComplete }: 
 
             <div className="prop">
               <h5>Reminder</h5>
-              <input
-                type="datetime-local"
-                value={task.reminder ? toInputValue(task.reminder) : ""}
-                onChange={(e) => update({ reminder: e.target.value ? toLocalIso(new Date(e.target.value)) : null })}
-              />
-              {!task.reminder && timed && <div className="small muted" style={{ marginTop: 4 }}>Reminds at the due time</div>}
+              <select
+                value={reminderChoice}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === "custom") return setCustomReminder(true);
+                  setCustomReminder(false);
+                  update({ reminder: reminderFrom(v) });
+                }}
+              >
+                {(timed ? TIMED_REMINDERS : DAY_REMINDERS).map(([v, l]) => (
+                  <option key={v} value={v}>
+                    {l}
+                  </option>
+                ))}
+                <option value="custom">{reminderChoice === "custom" && task.reminder ? customLabel(task.reminder) : "Custom…"}</option>
+              </select>
+              {(customReminder || reminderChoice === "custom") && (
+                <input
+                  type="datetime-local"
+                  style={{ marginTop: 6 }}
+                  value={task.reminder ? toInputValue(task.reminder) : ""}
+                  onChange={(e) => update({ reminder: e.target.value ? toLocalIso(new Date(e.target.value)) : null })}
+                />
+              )}
             </div>
 
             <div className="prop small muted">

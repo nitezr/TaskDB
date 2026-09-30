@@ -4,6 +4,7 @@ const timeLabel = (due: string) => parseDue(due).toLocaleTimeString(undefined, {
 import type { Task } from "../../types";
 import { useApp } from "../hooks";
 import { ArchiveIcon, CalendarSmallIcon, ChevronIcon, FlagIcon, MoonIcon, PersonIcon, RepeatIcon, SubtaskIcon, WarningIcon } from "../icons";
+import { plainPreview } from "../markdown";
 import { dragProps } from "../ui";
 
 export interface TaskItemHandlers {
@@ -162,7 +163,7 @@ export function TaskItem(p: Props) {
         {check}
         <div className="task-body">
           <div className={`task-title ${task.done ? "strike" : ""}`}>{task.title}</div>
-          {task.notes && <div className="task-notes">{task.notes}</div>}
+          {task.notes && <div className="task-notes">{plainPreview(task.notes)}</div>}
           <div className="task-meta">
             {(date || deadline || task.labels.length > 0 || task.person) && (
               <div className="meta-row">
@@ -194,7 +195,7 @@ export function TaskItem(p: Props) {
       {check}
       <div className="task-body">
         <div className={`task-title ${task.done ? "strike" : ""}`}>{task.title}</div>
-        {task.notes && <div className="task-notes">{task.notes}</div>}
+        {task.notes && <div className="task-notes">{plainPreview(task.notes)}</div>}
         {(date || deadline || task.when || task.labels.length > 0 || task.person || subs.length > 0 || projectLabel || task.syncError || !task.notionId) && (
           <div className="task-meta">
             {date}

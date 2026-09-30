@@ -359,6 +359,11 @@ export class AppController {
         fields = { ...fields, when: null };
       }
     }
+    // A reminder keeps its distance from the due date when the task is rescheduled.
+    if (fields.due && before.due && before.reminder && fields.reminder === undefined) {
+      const shift = parseDue(fields.due).getTime() - parseDue(before.due).getTime();
+      if (shift) fields = { ...fields, reminder: toLocalIso(new Date(parseDue(before.reminder).getTime() + shift)) };
+    }
     const prev = Object.fromEntries(Object.keys(fields).map((k) => [k, before[k as keyof TaskFields]])) as Partial<TaskFields>;
     this.engine!.updateTask(id, fields);
     this.record(`Edited “${before.title}”`, (ids) => this.engine!.updateTask(ids.get(id) ?? id, prev));
