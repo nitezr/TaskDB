@@ -4,7 +4,7 @@ import type { Store } from "../store/store";
 import { DEFAULT_FIELDS, type Task, type TaskFields } from "../types";
 import { Outbox } from "./outbox";
 
-const OPTIONAL_ON_CREATE = ["deadline", "duration"] as const;
+const OPTIONAL_ON_CREATE = ["deadline", "duration", "when"] as const;
 
 /**
  * Notion stores last_edited_time rounded to the minute, so a delta query

@@ -117,4 +117,19 @@ describe("shortcuts", () => {
     expect(vm.groups[7]!.gap).toBe("Nothing until 20 Oct");
     expect(vm.groups[1]!.gap).toBeUndefined();
   });
+
+  it("puts evening tasks in a This Evening group at the bottom of Today, and parks Someday tasks", async () => {
+    const app = await appWith([
+      { title: "Morning", due: "2026-09-26" },
+      { title: "Evening", due: "2026-09-26", when: "evening" },
+      { title: "Parked", when: "someday" },
+    ]);
+    const today = buildViewModel({ kind: "today" }, app, DEFAULT_PREFS, { now: NOW });
+    expect(today.groups.map((g) => [g.title, g.tasks.map((t) => t.title)])).toEqual([
+      ["Today", ["Morning"]],
+      ["This Evening", ["Evening"]],
+    ]);
+    expect(buildViewModel({ kind: "inbox" }, app, DEFAULT_PREFS, { now: NOW }).count).toBe(2);
+    expect(buildViewModel({ kind: "someday" }, app, DEFAULT_PREFS, { now: NOW }).count).toBe(1);
+  });
 });

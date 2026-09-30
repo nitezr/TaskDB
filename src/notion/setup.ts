@@ -77,6 +77,7 @@ function taskProperties(projectsDataSourceId: string): Record<string, unknown> {
     [P.section]: { select: { options: [] } },
     [P.deadline]: { date: {} },
     [P.duration]: { number: {} },
+    [P.when]: { select: { options: [option("This Evening", "purple"), option("Someday", "brown")] } },
   };
 }
 

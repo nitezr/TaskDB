@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { addDays, formatDue, hasTime, parseDue, startOfDay } from "../core/dates";
+import { addDays, formatDue, hasTime, parseDue, startOfDay, toDateStr } from "../core/dates";
 import type { Priority, Task, TaskFields } from "../types";
 import { BoardView } from "./components/BoardView";
 import { CalendarView } from "./components/CalendarView";
@@ -26,7 +26,7 @@ import { useApp } from "./hooks";
 import { actionForCombo, comboFromEvent } from "./shortcuts";
 import { type Anchor, anchorOf, type MenuEntry, playCompleteSound, Popover, useMenu } from "./ui";
 import { THEMES } from "./themes";
-import { BackIcon, ChevronIcon, CloseIcon, DisplayIcon, ForwardIcon, I, SearchIcon, SidebarIcon, WarningIcon } from "./icons";
+import { BackIcon, ChevronIcon, MoonIcon, CloseIcon, DisplayIcon, ForwardIcon, I, SearchIcon, SidebarIcon, WarningIcon } from "./icons";
 
 interface Toast {
   text: string;
@@ -268,6 +268,14 @@ function Main() {
     app.updateTask(id, { order: orderBefore(rest, before) });
   };
 
+  /** Things' This Evening (today, later) and Someday (parked, no date). */
+  const setWhen = (ids: string[], when: "evening" | "someday") => {
+    if (!ids.length) return;
+    const patch: Partial<TaskFields> = when === "evening" ? { due: toDateStr(new Date()), when } : { due: null, when };
+    app.transaction(() => ids.forEach((id) => app.updateTask(id, patch)), when === "evening" ? "Moved to This Evening" : "Moved to Someday");
+    setToast({ text: `${ids.length > 1 ? `${ids.length} tasks` : "Moved"} to ${when === "evening" ? "This Evening" : "Someday"}`, undo: true });
+  };
+
   const openPicker = (kind: "due" | "deadline", ids: string[]) => {
     if (!ids.length) return;
     const el = document.querySelector(`[data-id="${CSS.escape(ids[ids.length - 1]!)}"]`);
@@ -337,6 +345,8 @@ function Main() {
       ...(t.recurrence && !many ? [{ label: "Skip this occurrence", icon: <I.skip />, onClick: () => (app.skipOccurrence(id), setToast({ text: "Skipped to the next date", undo: true })) }] : []),
       { separator: true },
       ...RESCHEDULE_TARGETS.filter(([target]) => target !== "none").map(([target, label]) => ({ label, hint: hint(target), onClick: () => reschedule(ids, target) })),
+      { label: "This evening", icon: <MoonIcon size={13} />, hint: "⇧E", onClick: () => setWhen(ids, "evening") },
+      { label: "Someday", icon: <I.archive />, hint: "⇧S", onClick: () => setWhen(ids, "someday") },
       { label: "Pick a date…", icon: "", hint: "S", onClick: () => setPicker({ kind: "due", ids, anchor: at }) },
       { label: t.deadline && !many ? "Change deadline…" : "Set deadline…", hint: "D", onClick: () => setPicker({ kind: "deadline", ids, anchor: at }) },
       ...(t.due || many ? [{ label: "Remove date", onClick: () => reschedule(ids, "none") }] : []),
@@ -454,6 +464,12 @@ function Main() {
         break;
       case "schedulePicker":
         setPicker({ kind: "due", ids: [id], anchor: anchorAt(".peek .date-btn", 0) });
+        break;
+      case "scheduleEvening":
+        setWhen([id], "evening");
+        break;
+      case "scheduleSomeday":
+        setWhen([id], "someday");
         break;
       case "deadlinePicker":
         setPicker({ kind: "deadline", ids: [id], anchor: anchorAt(".peek .date-btn", 1) });
@@ -651,6 +667,12 @@ function Main() {
           break;
         case "schedulePicker":
           openPicker("due", targets());
+          break;
+        case "scheduleEvening":
+          setWhen(targets(), "evening");
+          break;
+        case "scheduleSomeday":
+          setWhen(targets(), "someday");
           break;
         case "deadlinePicker":
           openPicker("deadline", targets());

@@ -10,6 +10,7 @@ export type View =
   | { kind: "inbox" }
   | { kind: "today" }
   | { kind: "upcoming" }
+  | { kind: "someday" }
   | { kind: "project"; id: string }
   | { kind: "label"; name: string }
   | { kind: "person"; name: string }
@@ -83,7 +84,7 @@ export const DEADLINE_LABELS: Record<Deadline, string> = {
 export interface Group {
   key: string;
   title: string;
-  tone?: "overdue" | "today";
+  tone?: "overdue" | "today" | "evening";
   tasks: Task[];
   /** Applied to a task created in, or dropped onto, this group. Null = drop not allowed. */
   patch: Partial<TaskFields> | null;
@@ -155,7 +156,11 @@ export function viewTasks(view: View, app: AppController, prefs: DisplayPrefs, n
 
   switch (view.kind) {
     case "inbox":
-      base = all.filter((t) => !t.projectId || !app.project(t.projectId));
+      // Someday tasks are parked: out of the Inbox until you bring them back (Things).
+      base = all.filter((t) => (!t.projectId || !app.project(t.projectId)) && t.when !== "someday");
+      break;
+    case "someday":
+      base = all.filter((t) => t.when === "someday");
       break;
     case "today":
       // Deadlines arriving today (or missed) pull a task into Today, as in Things.
@@ -298,6 +303,18 @@ export function buildViewModel(view: View, app: AppController, prefs: DisplayPre
     ].filter((g) => g.key !== "s:none" || g.tasks.length || !names.length);
   }
 
+  // Things' "This Evening": the evening part of Today, below everything else.
+  if (view.kind === "today" && groupBy === "dueDate") {
+    const today0 = toDateStr(now);
+    const i = groups.findIndex((g) => g.key === today0);
+    if (i >= 0) {
+      const g = groups[i]!;
+      const evening = g.tasks.filter((t) => t.when === "evening");
+      groups[i] = { ...g, tasks: g.tasks.filter((t) => t.when !== "evening"), patch: { due: today0, when: null } };
+      if (evening.length) groups.splice(i + 1, 0, { key: "evening", title: "This Evening", tone: "evening", tasks: evening, patch: { due: today0, when: "evening" } });
+    }
+  }
+
   return {
     title,
     subtitle: view.kind === "upcoming" ? monthLabel(opts.upcomingStart ?? now) : undefined,
@@ -400,6 +417,8 @@ export function viewTitle(view: View, app: AppController): string {
       return "Inbox";
     case "today":
       return "Today";
+    case "someday":
+      return "Someday";
     case "upcoming":
       return "Upcoming";
     case "project": {
@@ -425,6 +444,8 @@ function viewDefaults(view: View, today: string): Partial<TaskFields> {
   switch (view.kind) {
     case "today":
       return { due: today };
+    case "someday":
+      return { when: "someday" };
     case "project":
       return { projectId: view.id };
     case "label":

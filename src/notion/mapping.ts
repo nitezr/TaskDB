@@ -19,6 +19,7 @@ export const P = {
   section: "Section",
   deadline: "Deadline",
   duration: "Duration (min)",
+  when: "When",
 } as const satisfies Record<keyof TaskFields, string>;
 
 const text = (s: string) => [{ type: "text", text: { content: s } }];
@@ -73,6 +74,9 @@ export function toProperties(
       case "section":
         out[name] = { select: select(value) };
         break;
+      case "when":
+        out[name] = { select: select(value === "evening" ? "This Evening" : value === "someday" ? "Someday" : null) };
+        break;
       case "order":
       case "duration":
         out[name] = { number: value };
@@ -123,5 +127,6 @@ export function fromPage(page: NotionPage): TaskFields {
     section: p[P.section]?.select?.name ?? null,
     deadline: p[P.deadline]?.date?.start ?? null,
     duration: p[P.duration]?.number ?? null,
+    when: p[P.when]?.select?.name === "This Evening" ? "evening" : p[P.when]?.select?.name === "Someday" ? "someday" : null,
   };
 }

@@ -334,6 +334,7 @@ export class AppController {
       recurrence: r.recurrence,
       deadline: r.deadline ?? defaults.deadline ?? null,
       duration: r.duration ?? defaults.duration ?? null,
+      when: r.when ?? defaults.when ?? null,
     });
   }
 
@@ -351,6 +352,13 @@ export class AppController {
     if (!this.guard()) return;
     const before = this.task(id);
     if (!before) return;
+    // Giving a Someday task a date brings it back; moving an evening task off today ends "evening".
+    if (fields.due !== undefined && fields.when === undefined && before.when) {
+      const today = toDateStr(new Date());
+      if ((before.when === "someday" && fields.due) || (before.when === "evening" && (!fields.due || dueDay(fields.due) !== today))) {
+        fields = { ...fields, when: null };
+      }
+    }
     const prev = Object.fromEntries(Object.keys(fields).map((k) => [k, before[k as keyof TaskFields]])) as Partial<TaskFields>;
     this.engine!.updateTask(id, fields);
     this.record(`Edited “${before.title}”`, (ids) => this.engine!.updateTask(ids.get(id) ?? id, prev));

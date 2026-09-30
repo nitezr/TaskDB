@@ -3801,3 +3801,19 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 .proj-row[draggable="true"] .nav {
   -webkit-user-drag: none;
 }
+
+/* This Evening / Someday (Things) */
+.when {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--muted);
+}
+.when.evening,
+.evening-moon {
+  color: #6366f1;
+}
+.evening-moon {
+  vertical-align: -2px;
+  margin-right: 6px;
+}

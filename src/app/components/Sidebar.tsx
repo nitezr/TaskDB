@@ -3,6 +3,7 @@ import { askConfirm } from "../confirm";
 import { countFor, sameView, type View } from "../display";
 import { useApp } from "../hooks";
 import {
+  ArchiveIcon,
   ChevronIcon,
   FilterIcon,
   FolderIcon,
@@ -303,6 +304,13 @@ export function Sidebar(p: Props) {
         )}
         {row({ kind: "today" }, <TodayIcon />, "Today", countFor({ kind: "today" }, app))}
         {row({ kind: "upcoming" }, <UpcomingIcon />, "Upcoming", countFor({ kind: "upcoming" }, app))}
+        {row(
+          { kind: "someday" },
+          <ArchiveIcon size={15} />,
+          "Someday",
+          countFor({ kind: "someday" }, app),
+          dropProps((id) => app.updateTask(id, { due: null, when: "someday" })),
+        )}
         {row({ kind: "browse" }, <HashIcon />, "Filters & Tags")}
 
         {filters.length > 0 &&

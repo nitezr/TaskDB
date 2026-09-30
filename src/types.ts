@@ -22,6 +22,8 @@ export interface TaskFields {
   deadline: string | null;
   /** Planned length in minutes; sizes the task on the calendar. */
   duration: number | null;
+  /** Things' "This Evening" (with a Today date) and "Someday" (parked, out of the way). */
+  when: "evening" | "someday" | null;
 }
 
 export interface Task extends TaskFields {
@@ -54,6 +56,7 @@ export const DEFAULT_FIELDS: TaskFields = {
   section: null,
   deadline: null,
   duration: null,
+  when: null,
 };
 
 export type OutboxOp =

@@ -11,6 +11,8 @@ export interface QuickAddResult {
   labels: string[];
   person: string | null;
   recurrence: string | null;
+  /** Things: "someday" parks the task; "this evening" puts it in Today's evening. */
+  when: "evening" | "someday" | null;
   /** From Todoist's "/Section" syntax. */
   section: string | null;
   /** From Todoist's "{friday}" syntax. */
@@ -21,7 +23,7 @@ export interface QuickAddResult {
   tokens: { start: number; end: number; kind: TokenKind }[];
 }
 
-export type TokenKind = "date" | "priority" | "project" | "section" | "label" | "person" | "recurrence" | "deadline" | "duration";
+export type TokenKind = "when" | "date" | "priority" | "project" | "section" | "label" | "person" | "recurrence" | "deadline" | "duration";
 
 export interface QuickAddContext {
   now?: Date;
@@ -78,6 +80,7 @@ export function parseQuickAdd(input: string, ctx: QuickAddContext = {}): QuickAd
     labels: [],
     person: null,
     recurrence: null,
+    when: null,
     section: null,
     deadline: null,
     duration: null,
@@ -115,6 +118,9 @@ export function parseQuickAdd(input: string, ctx: QuickAddContext = {}): QuickAd
     const minutes = Math.round(/^h/i.test(m[2]!) ? n * 60 : n);
     if (!minutes || minutes > 24 * 60) return false;
     out.duration = minutes;
+  });
+  scan(new RegExp(`${B}(someday|this\\s+evening)${E}`, "gi"), "when", (m) => {
+    out.when = m[1]!.toLowerCase() === "someday" ? "someday" : "evening";
   });
   scan(new RegExp(`${B}p([1-4])${E}`, "gi"), "priority", (m) => {
     out.priority = Number(m[1]) as Priority;
@@ -219,6 +225,9 @@ export function parseQuickAdd(input: string, ctx: QuickAddContext = {}): QuickAd
     const timed = rt ? applyTime(d, ...rt) : null;
     out.due = formatDue(timed ?? d, timed !== null);
   }
+
+  if (out.when === "evening" && !out.due) out.due = formatDue(today, false);
+  if (out.when === "someday") out.due = null;
 
   out.tokens.sort((a, b) => a.start - b.start);
   let title = "";

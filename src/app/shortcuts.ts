@@ -22,6 +22,8 @@ export type ActionId =
   | "scheduleNextWeek"
   | "scheduleClear"
   | "schedulePicker"
+  | "scheduleEvening"
+  | "scheduleSomeday"
   | "deadlinePicker"
   | "toggleSelect"
   | "productivity";
@@ -48,6 +50,8 @@ export const ACTIONS: { id: ActionId; title: string; group: ActionGroup; default
   { id: "scheduleWeekend", title: "This weekend", group: "Schedule", defaults: ["w"] },
   { id: "scheduleNextWeek", title: "Next week", group: "Schedule", defaults: ["n"] },
   { id: "scheduleClear", title: "Remove due date", group: "Schedule", defaults: ["0", "shift+t"] },
+  { id: "scheduleEvening", title: "This evening", group: "Schedule", defaults: ["shift+e"] },
+  { id: "scheduleSomeday", title: "Someday", group: "Schedule", defaults: ["shift+s"] },
   { id: "schedulePicker", title: "Pick a date…", group: "Schedule", defaults: ["s"] },
   { id: "deadlinePicker", title: "Set deadline…", group: "Schedule", defaults: ["d"] },
 ];

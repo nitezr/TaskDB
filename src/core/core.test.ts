@@ -189,3 +189,15 @@ describe("deadline filters", () => {
     expect(applyFilter("deadline 7 days", tasks, ctx).length).toBe(2);
   });
 });
+
+describe("This Evening and Someday", () => {
+  it("parses the words in quick add", () => {
+    const e = parseQuickAdd("Call mum this evening", { now: NOW });
+    expect(e.title).toBe("Call mum");
+    expect(e.when).toBe("evening");
+    expect(e.due).toBe("2026-09-26");
+    const s = parseQuickAdd("Learn Spanish someday", { now: NOW });
+    expect(s.when).toBe("someday");
+    expect(s.due).toBeNull();
+  });
+});

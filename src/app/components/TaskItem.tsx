@@ -3,7 +3,7 @@ import { deadlineLabel, dueDay, dueLabel, formatDuration, hasTime, parseDue, toD
 const timeLabel = (due: string) => parseDue(due).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 import type { Task } from "../../types";
 import { useApp } from "../hooks";
-import { CalendarSmallIcon, ChevronIcon, FlagIcon, PersonIcon, RepeatIcon, SubtaskIcon, WarningIcon } from "../icons";
+import { ArchiveIcon, CalendarSmallIcon, ChevronIcon, FlagIcon, MoonIcon, PersonIcon, RepeatIcon, SubtaskIcon, WarningIcon } from "../icons";
 import { dragProps } from "../ui";
 
 export interface TaskItemHandlers {
@@ -77,6 +77,16 @@ export function TaskItem(p: Props) {
   );
   const chips = (
     <>
+      {task.when === "evening" && !p.groupDay && (
+        <span className="when evening" title="This Evening">
+          <MoonIcon size={10} filled /> Evening
+        </span>
+      )}
+      {task.when === "someday" && (
+        <span className="when" title="Someday">
+          <ArchiveIcon size={10} /> Someday
+        </span>
+      )}
       {deadline}
       {!task.due && task.duration ? <span className="dur">{formatDuration(task.duration)}</span> : null}
       {task.labels.map((l) => (
@@ -185,7 +195,7 @@ export function TaskItem(p: Props) {
       <div className="task-body">
         <div className={`task-title ${task.done ? "strike" : ""}`}>{task.title}</div>
         {task.notes && <div className="task-notes">{task.notes}</div>}
-        {(date || deadline || task.labels.length > 0 || task.person || subs.length > 0 || projectLabel || task.syncError || !task.notionId) && (
+        {(date || deadline || task.when || task.labels.length > 0 || task.person || subs.length > 0 || projectLabel || task.syncError || !task.notionId) && (
           <div className="task-meta">
             {date}
             {chips}

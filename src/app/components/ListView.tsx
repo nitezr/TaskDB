@@ -3,7 +3,7 @@ import type { ScheduleTarget } from "../controller";
 import type { Group, TaskNode, ViewModel } from "../display";
 import { nest } from "../display";
 import { useApp } from "../hooks";
-import { CheckCircleIcon, I, PlusIcon } from "../icons";
+import { CheckCircleIcon, I, MoonIcon, PlusIcon } from "../icons";
 import { anchorOf, dropProps, useMenu } from "../ui";
 import { askConfirm } from "../confirm";
 import { QuickAdd } from "./QuickAdd";
@@ -172,7 +172,10 @@ function GroupBlock({
               onBlur={() => setRenaming(null)}
             />
           ) : (
-            <span onDoubleClick={() => sec?.name && setRenaming(sec.name)}>{group.title}</span>
+            <span onDoubleClick={() => sec?.name && setRenaming(sec.name)}>
+              {group.tone === "evening" && <MoonIcon size={13} filled className="evening-moon" />}
+              {group.title}
+            </span>
           )}
           {group.overdue && group.tasks.length > 0 && (
             <button
