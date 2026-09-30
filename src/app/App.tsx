@@ -92,8 +92,11 @@ function Main() {
   const badge = settings.dockBadge ? countFor({ kind: "today" }, app) : 0;
   useEffect(() => app.platform.setBadge?.(badge), [badge, app]);
 
-  const overlayOpen =
-    !!quickAdd || !!picker || productivity || palette || !!settingsTab || shortcuts || paywall || !!projectDialog || !!templateFor || !!openId || !!labelsFor || (!settings.tourDone && app.phase === "ready");
+  const otherOverlay =
+    !!quickAdd || !!picker || productivity || palette || !!settingsTab || shortcuts || paywall || !!projectDialog || !!templateFor || !!labelsFor || (!settings.tourDone && app.phase === "ready");
+  const overlayOpen = otherOverlay || !!openId;
+  /** The detail panel is open on its own: task shortcuts act on the task it shows. */
+  const peekOnly = !!openId && !otherOverlay;
 
   useEffect(() => {
     app.onQuickAdd = () => setQuickAdd({});
@@ -391,6 +394,89 @@ function Main() {
   const setPrefs = (patch: Partial<DisplayPrefs>) => app.setDisplayPrefs(key, patch);
 
   // ---- Keyboard ----
+
+  /** Shortcuts inside the detail panel. J/K/arrows and Esc are the panel's own. */
+  const peekKey = (e: KeyboardEvent, id: string) => {
+    const t = app.task(id);
+    if (!t) return;
+    const meta = e.metaKey || e.ctrlKey;
+    const k = e.key.toLowerCase();
+    const anchorAt = (sel: string, i = 0) => {
+      const el = document.querySelectorAll(sel)[i];
+      return el ? anchorOf(el) : { x: window.innerWidth / 2 - 130, y: 140 };
+    };
+    if (meta) {
+      if (k === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      } else if (k === "backspace") {
+        e.preventDefault();
+        deleteMany([id]);
+        setOpenId(null);
+      } else if (k === "d") {
+        e.preventDefault();
+        duplicate(id);
+      } else if (k === "c" && e.shiftKey) {
+        e.preventDefault();
+        copyLink(id);
+      }
+      return;
+    }
+    if (e.altKey) return;
+    const combo = comboFromEvent(e);
+    const action = combo ? actionForCombo(combo, settings.shortcuts) : null;
+    if (!action || action === "nextTask" || action === "previousTask" || action === "toggleSelect") return;
+    e.preventDefault();
+    switch (action) {
+      case "completeTask":
+        complete(id);
+        break;
+      case "priority1":
+      case "priority2":
+      case "priority3":
+      case "priority4":
+        app.updateTask(id, { priority: Number(action.slice(-1)) as Priority });
+        break;
+      case "scheduleToday":
+        reschedule([id], "today");
+        break;
+      case "scheduleTomorrow":
+        reschedule([id], "tomorrow");
+        break;
+      case "scheduleWeekend":
+        reschedule([id], "weekend");
+        break;
+      case "scheduleNextWeek":
+        reschedule([id], "nextWeek");
+        break;
+      case "scheduleClear":
+        reschedule([id], "none");
+        break;
+      case "schedulePicker":
+        setPicker({ kind: "due", ids: [id], anchor: anchorAt(".peek .date-btn", 0) });
+        break;
+      case "deadlinePicker":
+        setPicker({ kind: "deadline", ids: [id], anchor: anchorAt(".peek .date-btn", 1) });
+        break;
+      case "editLabels":
+        setLabelsFor({ id, anchor: anchorAt(".peek .tag-pool") });
+        break;
+      case "commandPalette":
+        setPalette(true);
+        break;
+      case "shortcutsPanel":
+        setShortcuts(true);
+        break;
+      case "quickAdd":
+        setQuickAdd(vm.addDefaults);
+        break;
+      case "productivity":
+        setProductivity(true);
+        break;
+      case "openDetail":
+        break;
+    }
+  };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -402,7 +488,9 @@ function Main() {
         setPalette(true);
         return;
       }
-      if (typing || overlayOpen) return;
+      if (typing) return;
+      if (peekOnly) return peekKey(e, openId!);
+      if (overlayOpen) return;
 
       if (meta) {
         const k = e.key.toLowerCase();
