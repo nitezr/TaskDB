@@ -325,7 +325,7 @@ export const I = {
   right: () => <ArrowRightIcon />,
   inbox: () => <InboxIcon size={13} />,
   check: () => <CheckCircleIcon size={13} />,
-  tags: () => <HashIcon size={13} />,
+  tags: () => <LabelIcon size={13} />,
   star: () => <StarIcon />,
   starOutline: () => <StarOutlineIcon />,
   section: () => <SectionIcon size={13} />,
@@ -358,4 +358,13 @@ export const PageIcon = (p?: IconProps) =>
       <path d="M9.3 1.8V5h3.2M5.8 8.2h4.4M5.8 10.8h3" />
     </>,
     { size: 15, ...p },
+  );
+/** Label: a tag shape, as Todoist draws labels. */
+export const LabelIcon = (p?: IconProps) =>
+  svg(
+    <>
+      <path d="M2.5 3.7v3.4c0 .4.2.8.5 1.1l5.6 5.6a1.2 1.2 0 0 0 1.7 0l3.4-3.4a1.2 1.2 0 0 0 0-1.7L8.1 3a1.6 1.6 0 0 0-1.1-.5H3.7a1.2 1.2 0 0 0-1.2 1.2Z" />
+      <circle cx="5.4" cy="5.4" r=".9" fill="currentColor" stroke="none" />
+    </>,
+    p,
   );

@@ -4,7 +4,7 @@ import { askConfirm } from "../confirm";
 import type { SavedFilter } from "../controller";
 import { countFor, type View } from "../display";
 import { useApp } from "../hooks";
-import { FilterIcon, PencilIcon, PersonIcon, TrashIcon } from "../icons";
+import { FilterIcon, LabelIcon, PencilIcon, PersonIcon, TrashIcon } from "../icons";
 
 /** "p1 & (today | overdue)" → "Priority 1 · Today or Overdue", as Remit shows under each filter. */
 export function describeQuery(q: string): string {
@@ -12,7 +12,7 @@ export function describeQuery(q: string): string {
     const x = t.trim().replace(/^\(+|\)+$/g, "").trim();
     const m = x.match(/^p([1-4])$/i);
     if (m) return `Priority ${m[1]}`;
-    if (x.startsWith("@")) return `#${x.slice(1).replace(/_/g, " ")}`;
+    if (x.startsWith("@")) return `@${x.slice(1).replace(/_/g, " ")}`;
     if (x.startsWith("#")) return `in ${x.slice(1).replace(/_/g, " ")}`;
     if (x.startsWith("+")) return `with ${x.slice(1).replace(/_/g, " ")}`;
     if (x.startsWith("!")) return `not ${term(x.slice(1))}`;
@@ -121,12 +121,12 @@ export function FiltersTags({ onNavigate }: { onNavigate: (v: View) => void }) {
       </div>
 
       <h3>
-        Tags <span className="count">{labels.length}</span>
+        Labels <span className="count">{labels.length}</span>
       </h3>
       <div className="panel-list">
         {labels.map((l) => (
           <div key={l} className="clickable" onClick={() => onNavigate({ kind: "label", name: l })}>
-            <span className="hash">#</span>
+            <span className="row-icon muted"><LabelIcon size={14} /></span>
             <div className="grow">{renaming?.kind === "label" && renaming.from === l ? renameInput : l}</div>
             <span className="actions">
               <button
@@ -135,7 +135,7 @@ export function FiltersTags({ onNavigate }: { onNavigate: (v: View) => void }) {
                   e.stopPropagation();
                   setRenaming({ kind: "label", from: l, to: l });
                 }}
-                aria-label="Rename tag"
+                aria-label="Rename label"
                 title="Rename everywhere"
               >
                 <PencilIcon />
@@ -144,9 +144,9 @@ export function FiltersTags({ onNavigate }: { onNavigate: (v: View) => void }) {
                 className="icon-btn"
                 onClick={(e) => {
                   e.stopPropagation();
-                  void askConfirm(`Remove #${l} from every task?`, "Remove Tag", { detail: `The tag comes off ${app.tasks().filter((t) => t.labels.includes(l)).length} task(s) in TaskDB and Notion. The tasks themselves are kept.` }).then((ok) => ok && app.removeLabel(l));
+                  void askConfirm(`Remove @${l} from every task?`, "Remove Label", { detail: `The label comes off ${app.tasks().filter((t) => t.labels.includes(l)).length} task(s) in TaskDB and Notion. The tasks themselves are kept.` }).then((ok) => ok && app.removeLabel(l));
                 }}
-                aria-label="Remove tag"
+                aria-label="Remove label"
                 title="Remove from every task"
               >
                 <TrashIcon size={13} />
@@ -157,10 +157,10 @@ export function FiltersTags({ onNavigate }: { onNavigate: (v: View) => void }) {
         ))}
         {!labels.length && (
           <div className="empty-box">
-            <span className="hash">#</span>
+            <span className="row-icon muted"><LabelIcon size={14} /></span>
             <div>
-              <b>No tags yet</b>
-              <p>Add one with @name in quick add, or from a task's details. Tags cut across projects.</p>
+              <b>No labels yet</b>
+              <p>Add one with @name in quick add, or from a task's details. Labels cut across projects.</p>
             </div>
           </div>
         )}
@@ -348,7 +348,7 @@ function FilterEditor({ filter, onSave, onClose }: { filter: SavedFilter; onSave
           {select(priority, setPriority, [1, 2, 3, 4].map((p) => [String(p), `Priority ${p}`]))}
         </div>
         <div className="field">
-          Tag
+          Label
           {select(label, setLabel, app.labels().map((l) => [l, l]))}
         </div>
         <div className="field">
@@ -364,7 +364,7 @@ function FilterEditor({ filter, onSave, onClose }: { filter: SavedFilter; onSave
           <input className={error ? "invalid" : ""} value={query} onChange={(e) => setAdvanced(e.target.value)} placeholder="p1 & (today | overdue)" />
         </div>
         <p className="small muted" style={{ margin: "4px 0" }}>
-          Query terms: today, tomorrow, overdue, no date, 7 days, recurring, deadline, missed deadline, p1–p4, #project, @tag, +person, "text". Combine with &amp; | ! ( ).
+          Query terms: today, tomorrow, overdue, no date, 7 days, recurring, deadline, missed deadline, p1–p4, #project, @label, +person, "text". Combine with &amp; | ! ( ).
         </p>
         {error && <p className="small error-text">{error}</p>}
         {!error && query.trim() && (

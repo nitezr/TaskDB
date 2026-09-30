@@ -152,7 +152,7 @@ export function DisplayMenu({
       </div>
       <div className="field">
         <span>
-          Tag
+          Label
           <Changed on={prefs.label !== "all"} />
         </span>
         <select value={prefs.label} onChange={(e) => onChange({ label: e.target.value })}>
@@ -167,7 +167,7 @@ export function DisplayMenu({
 
       <div className="display-foot">
         {filterName === null ? (
-          <button className="link small" disabled={!hasQuickFilter} onClick={() => setFilterName("")} title={hasQuickFilter ? "" : "Pick a deadline, priority or tag first"}>
+          <button className="link small" disabled={!hasQuickFilter} onClick={() => setFilterName("")} title={hasQuickFilter ? "" : "Pick a deadline, priority or label first"}>
             Save as Filter…
           </button>
         ) : (

@@ -58,7 +58,7 @@ export const GROUP_LABELS: Record<GroupBy, string> = {
   none: "None",
   dueDate: "Due date",
   priority: "Priority",
-  label: "Tag",
+  label: "Label",
   project: "Project",
   section: "Section",
 };
@@ -270,7 +270,7 @@ export function buildViewModel(view: View, app: AppController, prefs: DisplayPre
     const labels = [...new Set(sorted.flatMap((t) => t.labels))].sort((a, b) => a.localeCompare(b));
     groups = [
       ...labels.map((l) => ({ key: `l:${l}`, title: l, tasks: sorted.filter((t) => t.labels.includes(l)), patch: { labels: [l] } })),
-      { key: "l:none", title: "No tag", tasks: sorted.filter((t) => !t.labels.length), patch: { labels: [] } },
+      { key: "l:none", title: "No label", tasks: sorted.filter((t) => !t.labels.length), patch: { labels: [] } },
     ].filter((g) => g.tasks.length || opts.keepEmptyGroups);
   } else if (groupBy === "project") {
     groups = [
@@ -438,7 +438,7 @@ export function viewTitle(view: View, app: AppController): string {
     case "completed":
       return "Completed";
     case "browse":
-      return "Filters & Tags";
+      return "Filters & Labels";
   }
 }
 

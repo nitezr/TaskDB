@@ -388,7 +388,7 @@ function Main() {
         ? [{ heading: `${ids.length} tasks selected` } as MenuEntry]
         : [
             { label: "Open details", icon: <I.open />, hint: "↩", onClick: () => setOpenId(id) },
-            { label: "Edit tags…", icon: <I.tags />, hint: "L", onClick: () => setLabelsFor({ id, anchor: at }) },
+            { label: "Edit labels…", icon: <I.tags />, hint: "L", onClick: () => setLabelsFor({ id, anchor: at }) },
           ]),
       { label: t.done && !many ? "Reopen" : "Complete", icon: <I.check />, hint: "E", onClick: () => (t.done && !many ? complete(id) : completeMany(ids)) },
       ...(t.recurrence && !many ? [{ label: "Skip this occurrence", icon: <I.skip />, onClick: () => {
@@ -468,7 +468,7 @@ function Main() {
                   ? `Moved to ${patch.section}`
                   : "Removed from section"
                 : patch.labels !== undefined
-                  ? "Tags updated"
+                  ? "Labels updated"
                   : null;
       if (text) setToast({ text, undo: true });
     },

@@ -20,11 +20,11 @@ const TOUR_SECTIONS = ["1 · Basics", "2 · Organise", "3 · Power moves"];
 const TOUR_TASKS: TourTask[] = [
   { section: TOUR_SECTIONS[0]!, title: "Complete me: click the circle, or select me and press E", notes: "Completed tasks leave the list with a sound. ⌘Z brings the last one back.", dueToday: true },
   { section: TOUR_SECTIONS[0]!, title: "Press T to schedule me for today, or U for tomorrow", notes: "W is this weekend, N is next week, and 0 clears the date." },
-  { section: TOUR_SECTIONS[0]!, title: "Double-click me, or press I, to open my details", notes: "Title, notes, date, repeat, priority, tags and section are all editable there." },
+  { section: TOUR_SECTIONS[0]!, title: "Double-click me, or press I, to open my details", notes: "Title, notes, date, repeat, priority, labels and section are all editable there." },
   { section: TOUR_SECTIONS[1]!, title: "Check in with Sam about the Acme launch plan", notes: "People are assigned with +Name. @waiting marks something you're waiting on.", labels: ["waiting"], person: "Sam", dueToday: true, priority: 2 },
-  { section: TOUR_SECTIONS[1]!, title: "Press L and add the discuss tag to me", notes: "Tags are Notion multi-select values, so they show up in Notion too." },
+  { section: TOUR_SECTIONS[1]!, title: "Press L and add the discuss label to me", notes: "Labels are Notion multi-select values, so they show up in Notion too." },
   { section: TOUR_SECTIONS[1]!, title: "Move me to another section: open the Display menu, pick Board, and drag me", notes: "Or drag me onto a project in the sidebar." },
-  { section: TOUR_SECTIONS[2]!, title: "Press Q and type: Call Priya tomorrow 5pm p1 @waiting +Priya", notes: "Quick add understands dates, times, priorities (p1 to p4), #project, @tag and +person." },
+  { section: TOUR_SECTIONS[2]!, title: "Press Q and type: Call Priya tomorrow 5pm p1 @waiting +Priya", notes: "Quick add understands dates, times, priorities (p1 to p4), #project, @label and +person." },
   { section: TOUR_SECTIONS[2]!, title: "Press ⌘K to search and jump to any project or task", notes: "Press ? any time for every keyboard shortcut. Change them in Settings." },
   { section: TOUR_SECTIONS[2]!, title: "Done? Right-click this project in the sidebar and delete it", notes: "That removes it and its tasks from Notion too." },
 ];
@@ -39,11 +39,11 @@ const STEPS = [
   },
   {
     title: "List, Board and Calendar",
-    body: "Every view can be a list, a board of columns (by day, section, priority, tag or project) or a calendar. The Display menu remembers your choice per view.",
+    body: "Every view can be a list, a board of columns (by day, section, priority, label or project) or a calendar. The Display menu remembers your choice per view.",
   },
   {
     title: "Capture in one line",
-    body: "Press Q and type “Call Priya tomorrow 5pm p1 #Work @waiting”. TaskDB sets the date, time, priority, project and tag at once. #, @ and + autocomplete as you type.",
+    body: "Press Q and type “Call Priya tomorrow 5pm p1 #Work @waiting”. TaskDB sets the date, time, priority, project and label at once. #, @ and + autocomplete as you type.",
   },
   {
     title: "A few keys to start with",
@@ -152,7 +152,7 @@ export function Tour({ onClose, onOpenProject }: { onClose: () => void; onOpenPr
               <span className="ico">
                 <HashIcon />
               </span>
-              Projects, sections, tags and people are real Notion properties — edit them in Notion too.
+              Projects, sections, labels and people are real Notion properties — edit them in Notion too.
             </li>
             <li>
               <span className="ico">

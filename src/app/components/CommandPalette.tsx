@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { dueLabel } from "../../core/dates";
 import type { View } from "../display";
 import { useApp } from "../hooks";
-import { CheckCircleIcon, FilterIcon, FolderIcon, HashIcon, InboxIcon, SearchIcon, TodayIcon, UpcomingIcon } from "../icons";
+import { CheckCircleIcon, FilterIcon, FolderIcon, HashIcon, InboxIcon, LabelIcon, SearchIcon, TodayIcon, UpcomingIcon } from "../icons";
 
 export interface PaletteAction {
   label: string;
@@ -11,7 +11,7 @@ export interface PaletteAction {
   run: () => void;
 }
 
-/** ⌘K: jump to any view, project, tag or task, or run an app action. */
+/** ⌘K: jump to any view, project, label or task, or run an app action. */
 export function CommandPalette({
   onClose,
   onNavigate,
@@ -35,14 +35,14 @@ export function CommandPalette({
       [{ kind: "inbox" }, "Inbox", <InboxIcon />],
       [{ kind: "today" }, "Today", <TodayIcon />],
       [{ kind: "upcoming" }, "Upcoming", <UpcomingIcon />],
-      [{ kind: "browse" }, "Filters & Tags", <HashIcon />],
+      [{ kind: "browse" }, "Filters & Labels", <LabelIcon />],
       [{ kind: "completed" }, "Completed", <CheckCircleIcon />],
     ];
     for (const [v, label, icon] of nav) if (has(label)) out.push({ label, kind: "View", icon, run: () => onNavigate(v) });
     for (const { project } of app.projectTree())
       if (has(project.name)) out.push({ label: project.name, kind: "Project", icon: project.emoji ?? (app.projects.some((x) => x.parentId === project.id) ? <FolderIcon /> : <span className={`t-${project.color}`}>#</span>), run: () => onNavigate({ kind: "project", id: project.id }) });
     for (const f of app.filters()) if (has(f.name)) out.push({ label: f.name, kind: "Filter", icon: <FilterIcon />, run: () => onNavigate({ kind: "filter", id: f.id }) });
-    for (const l of app.labels()) if (has(l)) out.push({ label: l, kind: "Tag", icon: <HashIcon />, run: () => onNavigate({ kind: "label", name: l }) });
+    for (const l of app.labels()) if (has(l)) out.push({ label: l, kind: "Label", icon: <LabelIcon />, run: () => onNavigate({ kind: "label", name: l }) });
     for (const a of actions) if (has(a.label)) out.push(a);
     if (needle) {
       const tasks = app

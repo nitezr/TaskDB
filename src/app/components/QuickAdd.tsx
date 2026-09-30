@@ -142,7 +142,7 @@ export function QuickAdd({ defaults = {}, onDone, variant, onAdded }: Props) {
           if (lines.length < 2) return;
           e.preventDefault();
           void askConfirm(`Add ${lines.length} tasks?`, `Add ${lines.length} Tasks`, {
-            detail: "One task per line. Dates, #projects, @tags and priorities on each line are understood.",
+            detail: "One task per line. Dates, #projects, @labels and priorities on each line are understood.",
             danger: false,
           }).then(async (ok) => {
             if (!ok) return;
@@ -215,7 +215,7 @@ export function QuickAdd({ defaults = {}, onDone, variant, onAdded }: Props) {
             {c.label}
           </span>
         ))}
-        {!chips.length && <span className="hint">Dates, p1–p4, #project, @tag, +person, every …</span>}
+        {!chips.length && <span className="hint">Dates, p1–p4, #project, @label, +person, every …</span>}
       </div>
       <div className="quick-add-actions">
         <button

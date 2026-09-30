@@ -792,7 +792,7 @@ export class AppController {
       for (const t of this.tasks().filter((t) => t.labels.includes(from))) {
         this.updateTask(t.id, { labels: [...new Set(t.labels.map((l) => (l === from ? clean : l)))] });
       }
-    }, `Renamed tag ${from}`);
+    }, `Renamed label ${from}`);
   }
 
   removeLabel(name: string): void {
@@ -800,7 +800,7 @@ export class AppController {
       for (const t of this.tasks().filter((t) => t.labels.includes(name))) {
         this.updateTask(t.id, { labels: t.labels.filter((l) => l !== name) });
       }
-    }, `Removed tag ${name}`);
+    }, `Removed label ${name}`);
   }
 
   renamePerson(from: string, to: string): void {

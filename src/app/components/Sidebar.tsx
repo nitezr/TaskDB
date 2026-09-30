@@ -2,21 +2,7 @@ import { useState } from "react";
 import { askConfirm } from "../confirm";
 import { countFor, sameView, type View } from "../display";
 import { useApp } from "../hooks";
-import {
-  ArchiveIcon,
-  ChevronIcon,
-  FilterIcon,
-  FolderIcon,
-  GearIcon,
-  HashIcon,
-  HelpIcon,
-  I,
-  InboxIcon,
-  PlusIcon,
-  SidebarIcon,
-  TodayIcon,
-  UpcomingIcon,
-} from "../icons";
+import { I, ArchiveIcon, ChevronIcon, FilterIcon, FolderIcon, GearIcon, HashIcon, HelpIcon, InboxIcon, LabelIcon, PlusIcon, SidebarIcon, TodayIcon, UpcomingIcon } from "../icons";
 import { dropProps, useMenu } from "../ui";
 import type { Project } from "../../notion/projects";
 import { describeLicense } from "./License";
@@ -311,7 +297,7 @@ export function Sidebar(p: Props) {
           countFor({ kind: "someday" }, app),
           dropProps((id) => app.updateTask(id, { due: null, when: "someday" })),
         )}
-        {row({ kind: "browse" }, <HashIcon />, "Filters & Tags")}
+        {row({ kind: "browse" }, <LabelIcon />, "Filters & Labels")}
 
         {filters.length > 0 &&
           section(

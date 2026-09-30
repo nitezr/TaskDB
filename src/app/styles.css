@@ -1021,7 +1021,7 @@ html.mac-window .sidebar {
   gap: 3px;
 }
 .card .tag:not(.person)::before {
-  content: "#";
+  content: "@";
   font-size: 10px;
   opacity: 0.8;
 }

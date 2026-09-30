@@ -126,4 +126,4 @@ Notion allows ~3 requests/sec per integration, and each call takes 0.5–2s. The
 9. ✅ Landing page copy + Lemon Squeezy listing
 10. ✅ Remit feature parity: List/Board/Calendar per view, Display menu, sections, nested projects,
     favourites, emoji, templates, detail peek, ⌘K palette, remappable shortcuts, undo, history,
-    tag rename/remove, structured filters, welcome tour
+    label rename/remove, structured filters, welcome tour

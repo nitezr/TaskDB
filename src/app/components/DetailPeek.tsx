@@ -379,9 +379,9 @@ export function DetailPeek({ id, onClose, onOpen, prevId, nextId, onComplete }: 
             </div>
 
             <div className="prop">
-              <h5>Tags</h5>
+              <h5>Labels</h5>
               <input
-                placeholder="Search or add tags"
+                placeholder="Search or add labels"
                 value={tagQuery}
                 onChange={(e) => setTagQuery(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && tagQuery.trim() && addTag(tagQuery)}
@@ -395,14 +395,14 @@ export function DetailPeek({ id, onClose, onOpen, prevId, nextId, onComplete }: 
                       className={on ? "on" : ""}
                       onClick={() => update({ labels: on ? task.labels.filter((x) => x !== l) : [...task.labels, l] })}
                     >
-                      <span className="hash">#</span>
+                      <span className="hash">@</span>
                       {l}
                     </button>
                   );
                 })}
                 {tagQuery.trim() && !allTags.some((t) => t.toLowerCase() === tagQuery.trim().replace(/^[@#]/, "").toLowerCase()) && (
                   <button className="add-tag" onClick={() => addTag(tagQuery)}>
-                    Add #{tagQuery.trim().replace(/^[@#]/, "")}
+                    Add @{tagQuery.trim().replace(/^[@#]/, "")}
                   </button>
                 )}
               </div>
