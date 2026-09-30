@@ -27,7 +27,7 @@ async function appWith(tasks: Partial<Task>[], projects: { id: string; name: str
   for (const [i, t] of tasks.entries()) {
     store.putTask({ ...DEFAULT_FIELDS, id: `t${i}`, notionId: null, remoteEditedAt: null, syncError: null, ...t } as Task);
   }
-  app.projects = projects.map((p) => ({ color: "blue", archived: false, order: 0, emoji: null, favorite: false, parentId: null, sections: [], ...p }));
+  app.projects = projects.map((p) => ({ color: "blue", archived: false, order: 0, emoji: null, favorite: false, parentId: null, sections: [], notes: null, ...p }));
   return app;
 }
 

@@ -13,6 +13,8 @@ export interface Project {
   parentId: string | null;
   /** Section names in display order. Tasks reference them by name. */
   sections: string[];
+  /** Things-style project notes: what this project is and what "done" means. */
+  notes: string | null;
 }
 
 /** Property names of the auto-created Projects data source. */
@@ -24,6 +26,7 @@ export const PP = {
   favorite: "Favorite",
   parentId: "Parent project",
   sections: "Sections",
+  notes: "Notes",
 } as const;
 
 const plain = (rich: any[] | undefined) =>
@@ -44,6 +47,7 @@ export function projectFromPage(page: NotionPage): Project {
       .split("\n")
       .map((s) => s.trim())
       .filter(Boolean),
+    notes: plain(p[PP.notes]?.rich_text) || null,
   };
 }
 
@@ -58,6 +62,10 @@ function toProperties(fields: Editable): Record<string, unknown> {
   if (fields.order !== undefined) props[PP.order] = { number: fields.order };
   if (fields.favorite !== undefined) props[PP.favorite] = { checkbox: fields.favorite };
   if (fields.parentId !== undefined) props[PP.parentId] = { relation: fields.parentId ? [{ id: fields.parentId }] : [] };
+  if (fields.notes !== undefined) {
+    const chunks = (fields.notes ?? "").match(/[\s\S]{1,2000}/g) ?? [];
+    props[PP.notes] = { rich_text: chunks.map((c) => ({ type: "text", text: { content: c } })) };
+  }
   if (fields.sections !== undefined) props[PP.sections] = { rich_text: fields.sections.length ? text(fields.sections.join("\n")) : [] };
   return props;
 }

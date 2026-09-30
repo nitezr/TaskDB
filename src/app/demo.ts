@@ -43,7 +43,7 @@ function seed(n: FakeNotion) {
 
   // Mirrors Remit's demo workspace: two groups of projects, sections, favourites.
   let order = 0;
-  const project = (name: string, o: { color: string; emoji?: string; parent?: string; sections?: string[]; favorite?: boolean }) => {
+  const project = (name: string, o: { color: string; emoji?: string; parent?: string; sections?: string[]; favorite?: boolean; notes?: string }) => {
     const page = n.addPage(
       {
         Name: title(name),
@@ -52,6 +52,7 @@ function seed(n: FakeNotion) {
         Favorite: { checkbox: Boolean(o.favorite) },
         "Parent project": rel(o.parent),
         Sections: text(o.sections?.join("\n")),
+        Notes: text(o.notes),
       },
       "projects",
     );
@@ -59,7 +60,7 @@ function seed(n: FakeNotion) {
     return page.id;
   };
   const work = project("Work", { color: "gray" });
-  const acme = project("Acme Launch", { color: "blue", emoji: "🚀", parent: work, sections: ["Planning", "Design", "Launch week"], favorite: true });
+  const acme = project("Acme Launch", { color: "blue", emoji: "🚀", parent: work, sections: ["Planning", "Design", "Launch week"], favorite: true, notes: "Public launch of Acme on **14 Oct**. Done = press kit out, demo video live, first 100 sign-ups." });
   const orbit = project("Orbit App", { color: "purple", emoji: "🌟", parent: work, sections: ["Bugs", "Features"] });
   const personal = project("Personal", { color: "gray" });
   const home = project("Home", { color: "green", emoji: "🏠", parent: personal });
@@ -76,7 +77,7 @@ function seed(n: FakeNotion) {
   };
   const task = (
     t: string,
-    o: { due?: string; p?: number; project?: string; section?: string; labels?: string[]; person?: string; rec?: string; parent?: string; notes?: string; deadline?: string; mins?: number } = {},
+    o: { due?: string; p?: number; project?: string; section?: string; labels?: string[]; person?: string; rec?: string; parent?: string; notes?: string; deadline?: string; mins?: number; when?: string } = {},
   ) =>
     n.addPage({
       Name: title(t),
@@ -92,6 +93,7 @@ function seed(n: FakeNotion) {
       "Parent item": rel(o.parent),
       Deadline: date(o.deadline ?? null),
       "Duration (min)": { number: o.mins ?? null },
+      When: sel(o.when),
     });
 
   task("Send Priya the signed contract", { due: d(-2), p: 2, project: acme, section: "Planning", person: "Priya", labels: ["waiting"] });
@@ -107,12 +109,14 @@ function seed(n: FakeNotion) {
     project: acme,
     section: "Launch week",
     labels: ["discuss"],
-    notes: "Keep it under 150 words and lead with the problem.",
+    notes: "Keep it under **150 words** and lead with the problem.\n- [x] Draft headline\n- [ ] Pick hero screenshot\n- [ ] Legal review\nBrief: https://www.notion.so/acme/launch-brief",
   });
   task("Get legal sign-off", { project: acme, section: "Launch week", parent: copy.id });
   task("Review Orbit onboarding designs", { due: at(0, 14), mins: 45, p: 2, project: orbit, section: "Features", person: "Leo" });
   task("Water the plants", { due: at(0, 18), project: home, rec: "every mon,thu" });
   task("Grocery run", { due: d(1), project: home });
+  task("Call mum", { due: d(0), when: "This Evening", project: home });
+  task("Plan the Japan trip", { when: "Someday", project: personal });
   task("Read chapter 4 of Deep Work", { due: d(1), project: reading });
   task("Prep slides for the Acme all-hands", { due: at(1, 11), p: 2, project: acme, section: "Launch week" });
   task("1:1 with Leo", { due: at(1, 15, 30), project: orbit, person: "Leo", labels: ["discuss"] });

@@ -15,6 +15,7 @@ import { LicenseBanner, Paywall } from "./components/License";
 import { ListView, orderBefore, RESCHEDULE_TARGETS, type ViewCtx } from "./components/ListView";
 import { Onboarding } from "./components/Onboarding";
 import { ProjectDialog, SaveTemplateDialog } from "./components/ProjectDialogs";
+import { ProjectNotes } from "./components/ProjectNotes";
 import { QuickAdd } from "./components/QuickAdd";
 import { SettingsWindow, ShortcutsPanel } from "./components/SettingsWindow";
 import { Sidebar } from "./components/Sidebar";
@@ -82,11 +83,25 @@ function Main() {
   const prefs = app.displayPrefs(key);
   const layout = view.kind === "browse" || view.kind === "completed" || view.kind === "search" ? "list" : prefs.layout;
   const upcomingStart = addDays(startOfDay(new Date()), upcomingWeek * 7);
-  const vm = buildViewModel(view, app, prefs, {
+  const fullVm = buildViewModel(view, app, prefs, {
     upcomingStart,
     upcomingDays: 7,
     upcomingOpenEnded: layout !== "board",
   });
+  // ⌘F narrows the current view to matching tasks (title, description, tags, person).
+  const [find, setFind] = useState<string | null>(null);
+  const needle = find?.trim().toLowerCase() ?? "";
+  const vm = needle
+    ? (() => {
+        const hit = (t: Task) =>
+          t.title.toLowerCase().includes(needle) ||
+          (t.notes ?? "").toLowerCase().includes(needle) ||
+          t.labels.some((l) => l.toLowerCase().includes(needle)) ||
+          (t.person ?? "").toLowerCase().includes(needle);
+        const groups = fullVm.groups.map((g) => ({ ...g, tasks: g.tasks.filter(hit), repeats: undefined, gap: undefined })).filter((g) => g.tasks.length);
+        return { ...fullVm, groups, count: groups.reduce((n, g) => n + g.tasks.filter((t) => !t.done).length, 0) };
+      })()
+    : fullVm;
   const order = useMemo(() => visibleOrder(vm, collapsed, layout), [vm, collapsed, layout]);
   // Dock badge: what's due today or overdue, as in Things. Off in Settings.
   const badge = settings.dockBadge ? countFor({ kind: "today" }, app) : 0;
@@ -120,6 +135,7 @@ function Main() {
       setView(v);
       setSelected(null);
       setMulti(new Set());
+      setFind(null);
       setUpcomingWeek(0);
     },
     [view],
@@ -504,6 +520,12 @@ function Main() {
         setPalette(true);
         return;
       }
+      if (meta && e.key.toLowerCase() === "f" && !overlayOpen && view.kind !== "browse") {
+        e.preventDefault();
+        setFind((f) => f ?? "");
+        requestAnimationFrame(() => (document.querySelector(".find-field input") as HTMLInputElement | null)?.select());
+        return;
+      }
       if (typing) return;
       if (peekOnly) return peekKey(e, openId!);
       if (overlayOpen) return;
@@ -745,7 +767,7 @@ function Main() {
   const hiddenByFilters = filtering
     ? Math.max(0, viewTasks(view, app, { ...DEFAULT_PREFS, showCompleted: prefs.showCompleted }).tasks.length - viewTasks(view, app, prefs).tasks.length)
     : 0;
-  const allowSections = view.kind === "project" && (prefs.groupBy === "default" || prefs.groupBy === "section");
+  const allowSections = view.kind === "project" && (prefs.groupBy === "default" || prefs.groupBy === "section") && !needle;
 
   return (
     <div className={`shell ${settings.sidebarHidden ? "no-sidebar" : ""}`}>
@@ -815,6 +837,32 @@ function Main() {
               ⋯
             </button>
           )}
+          {find !== null && (
+            <div className="find-field">
+              <SearchIcon size={13} />
+              <input
+                autoFocus
+                placeholder={`Find in ${vm.title}`}
+                value={find}
+                onChange={(e) => setFind(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    e.stopPropagation();
+                    setFind(null);
+                  }
+                  if (e.key === "Enter" || e.key === "ArrowDown") {
+                    e.preventDefault();
+                    (e.target as HTMLInputElement).blur();
+                    setSelected(order[0] ?? null);
+                  }
+                }}
+              />
+              {needle && <span className="find-count">{vm.count}</span>}
+              <button className="icon-btn" onClick={() => setFind(null)} aria-label="Close find">
+                <CloseIcon size={11} />
+              </button>
+            </div>
+          )}
           <button className="tool-btn" onClick={() => setPalette(true)} title="Search (⌘K)" aria-label="Search">
             <SearchIcon />
           </button>
@@ -875,7 +923,10 @@ function Main() {
               onAddOn={(day) => setQuickAdd({ ...vm.addDefaults, due: day })}
             />
           ) : (
-            <ListView vm={vm} ctx={ctx} allowSections={allowSections} />
+            <>
+              {project && !needle && <ProjectNotes project={project} />}
+              <ListView vm={vm} ctx={ctx} allowSections={allowSections} />
+            </>
           )}
         </div>
       </main>

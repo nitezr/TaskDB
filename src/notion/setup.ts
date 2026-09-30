@@ -55,6 +55,7 @@ function projectProperties(): Record<string, unknown> {
     [PP.order]: { number: {} },
     [PP.favorite]: { checkbox: {} },
     [PP.sections]: { rich_text: {} },
+    [PP.notes]: { rich_text: {} },
   };
 }
 

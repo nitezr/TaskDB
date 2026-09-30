@@ -61,6 +61,7 @@ export const FIXED_BINDINGS: { group: ActionGroup; keys: string; title: string }
   { group: "Navigation", keys: "↓ ↑", title: "Next / previous task" },
   { group: "Navigation", keys: "← →", title: "Move between board columns" },
   { group: "Navigation", keys: "⌘K", title: "Command palette" },
+  { group: "Navigation", keys: "⌘F", title: "Find in this view" },
   { group: "Navigation", keys: "⌘\\", title: "Toggle sidebar" },
   { group: "Navigation", keys: "⌘[ ⌘]", title: "Back / forward" },
   { group: "Navigation", keys: "G then I / T / U / F", title: "Go to Inbox / Today / Upcoming / Filters & Tags" },

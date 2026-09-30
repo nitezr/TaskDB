@@ -3900,3 +3900,103 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   border-width: 0 0 1.6px 1.6px;
   transform: rotate(-45deg) translate(1px, -1px);
 }
+
+/* ⌘F find-in-view */
+.find-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 4px 0 9px;
+  margin-right: 4px;
+  border-radius: 7px;
+  background: var(--chip);
+  color: var(--muted);
+  width: 240px;
+}
+.find-field input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 13px;
+  color: var(--text);
+}
+.find-count {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Project notes */
+.project-notes {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 10px 20px 0 38px;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+.project-notes.view {
+  cursor: text;
+}
+.project-notes.view .markdown {
+  padding: 6px 8px;
+  margin: 0 -8px;
+  border-radius: 6px;
+  color: var(--text);
+  opacity: 0.85;
+}
+.project-notes.view:hover .markdown {
+  background: var(--hover);
+}
+.project-notes-input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  resize: none;
+  padding: 6px 0;
+  font-size: 13.5px;
+  color: var(--text);
+  field-sizing: content;
+}
+.project-notes-input:not(.on)::placeholder {
+  color: var(--faint);
+}
+.project-notes-input.on {
+  background: var(--card);
+  border: 1px solid var(--line);
+  padding: 8px 10px;
+  border-radius: 8px;
+  min-height: 72px;
+}
+
+/* Quick add destination */
+.quick-add-actions {
+  align-items: center;
+}
+.dest-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  font-size: 12.5px;
+  color: var(--text);
+  max-width: 50%;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.dest-pill:hover {
+  background: var(--hover);
+}
+.dest-pill .ico {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+/* Menus keep leading spaces so nested projects and sections read as a tree. */
+.menu-item .grow {
+  white-space: pre;
+}

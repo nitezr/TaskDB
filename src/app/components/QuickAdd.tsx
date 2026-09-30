@@ -3,7 +3,8 @@ import { deadlineLabel, dueLabel, formatDuration } from "../../core/dates";
 import { parseQuickAdd } from "../../core/quickAdd";
 import type { TaskFields } from "../../types";
 import { askConfirm } from "../confirm";
-import { CalendarSmallIcon, ClockIcon, FlagIcon, HashIcon, PersonIcon, SectionIcon } from "../icons";
+import { CalendarSmallIcon, ChevronDownIcon, ClockIcon, FlagIcon, HashIcon, InboxIcon, PersonIcon, SectionIcon } from "../icons";
+import { anchorOf, useMenu } from "../ui";
 import { useApp } from "../hooks";
 
 interface Props {
@@ -49,6 +50,11 @@ export function QuickAdd({ defaults = {}, onDone, variant, onAdded }: Props) {
   const [hot, setHot] = useState(0);
   const [busy, setBusy] = useState(false);
   const ref = useRef<HTMLInputElement>(null);
+  const menu = useMenu();
+  const [dest, setDest] = useState<{ projectId: string | null; section: string | null }>({
+    projectId: defaults.projectId ?? null,
+    section: defaults.section ?? null,
+  });
   const mirror = useRef<HTMLDivElement>(null);
   useEffect(() => ref.current?.focus(), []);
 
@@ -85,7 +91,7 @@ export function QuickAdd({ defaults = {}, onDone, variant, onAdded }: Props) {
   const submit = async () => {
     if (!parsed.title || busy) return;
     setBusy(true);
-    const task = await app.quickAdd(text, { ...defaults, ...(notes.trim() ? { notes: notes.trim() } : {}) });
+    const task = await app.quickAdd(text, { ...defaults, projectId: dest.projectId, section: dest.section, ...(notes.trim() ? { notes: notes.trim() } : {}) });
     setBusy(false);
     setText("");
     setNotes("");
@@ -99,11 +105,11 @@ export function QuickAdd({ defaults = {}, onDone, variant, onAdded }: Props) {
   if (parsed.recurrence) chips.push({ label: parsed.recurrence, kind: "recurrence" });
   if (parsed.duration) chips.push({ label: formatDuration(parsed.duration), kind: "duration" });
   if (parsed.deadline) chips.push({ label: deadlineLabel(parsed.deadline).text, kind: "deadline" });
-  const projectName = parsed.project ?? app.projectName(defaults.projectId ?? null);
-  const known = parsed.project && projectNames.some((p) => p.toLowerCase() === parsed.project!.toLowerCase());
-  if (projectName) chips.push({ label: `${projectName}${parsed.project && !known ? " (new)" : ""}`, kind: "project" });
-  const section = parsed.section ?? defaults.section;
-  if (section) chips.push({ label: section, kind: "section" });
+  const destProject = app.project(dest.projectId);
+  const projectName = parsed.project && !app.projects.some((p) => p.name.toLowerCase() === parsed.project!.toLowerCase()) ? parsed.project : null;
+  // The destination pill shows the project; a chip only flags one that will be created.
+  if (projectName) chips.push({ label: `${projectName} (new project)`, kind: "project" });
+
   for (const l of [...(defaults.labels ?? []), ...parsed.labels]) chips.push({ label: l, kind: "label" });
   const person = parsed.person ?? defaults.person;
   if (person) chips.push({ label: person, kind: "person" });
@@ -212,6 +218,33 @@ export function QuickAdd({ defaults = {}, onDone, variant, onAdded }: Props) {
         {!chips.length && <span className="hint">Dates, p1–p4, #project, @tag, +person, every …</span>}
       </div>
       <div className="quick-add-actions">
+        <button
+          className="dest-pill"
+          onClick={(e) =>
+            menu.open(anchorOf(e.currentTarget), [
+              { label: "Inbox", icon: <InboxIcon size={13} />, onClick: () => setDest({ projectId: null, section: null }) },
+              ...app.projectTree().flatMap(({ project, depth }) => [
+                {
+                  label: `${"   ".repeat(depth)}${project.name}`,
+                  icon: project.emoji ?? <HashIcon size={12} />,
+                  onClick: () => setDest({ projectId: project.id, section: null }),
+                },
+                ...project.sections.map((sec) => ({
+                  label: `${"   ".repeat(depth + 1)}${sec}`,
+                  icon: <SectionIcon size={11} />,
+                  onClick: () => setDest({ projectId: project.id, section: sec }),
+                })),
+              ]),
+            ])
+          }
+          title="Where the task goes (or type #project /section)"
+        >
+          {destProject?.emoji ? <span>{destProject.emoji}</span> : destProject ? <HashIcon size={11} /> : <InboxIcon size={12} />}
+          {parsed.project ?? destProject?.name ?? "Inbox"}
+          {(parsed.section ?? dest.section) && <span className="muted"> / {parsed.section ?? dest.section}</span>}
+          <ChevronDownIcon size={10} />
+        </button>
+        <span className="grow" />
         <button className="ghost" onClick={onDone}>
           Cancel
         </button>
@@ -219,6 +252,7 @@ export function QuickAdd({ defaults = {}, onDone, variant, onAdded }: Props) {
           Add task
         </button>
       </div>
+      {menu.element}
     </div>
   );
 

@@ -31,6 +31,14 @@ TaskDB competes on speed and taste for people who keep their life in Notion. The
 | ⌥↑/⌥↓ reorder | Keyboard | Reordering without the mouse switches the view to manual order, as in Todoist. |
 | Dock badge with Today's count | Dock (setting) | Glanceable. |
 
+### Second batch
+- **This Evening and Someday (Things):** a When property, an evening group at the bottom of Today, and a Someday list in the sidebar kept out of the Inbox. Set them with ⇧E / ⇧S, "this evening" / "someday" in quick add, or the task menu.
+- **Markdown descriptions:** lists, checklists you can tick, bold, code and clickable links; rows show a clean preview.
+- **Relative reminders:** "15 min before", "Day before, 9 AM" and so on. A reminder keeps its distance from the date when the task moves.
+- **⌘F:** find within the current view.
+- **Project notes (Things):** notes shown under the project title, stored in Notion.
+- **Quick add destination picker:** choose a project or section without typing #.
+
 ### Settings added
 - Theme
 - Density: comfortable or compact
@@ -42,7 +50,6 @@ TaskDB competes on speed and taste for people who keep their life in Notion. The
 
 ## Deliberately not built (yet)
 - **Karma points and levels.** Gamification that doesn't suit a calm, premium tool. Goals and streaks give most of the motivation.
-- **This Evening and Someday lists.** They need a new property and new views. Worth adding if users ask; Someday can be a tag today.
 - **Comments and activity log.** TaskDB is single-player and descriptions cover notes.
 - **Calendar events inline.** Needs a calendar integration. A strong v2 item (EventKit through Tauri).
 - **Type Travel (typing jumps to a list).** Conflicts with single-key shortcuts; ⌘K covers it.
@@ -50,7 +57,5 @@ TaskDB competes on speed and taste for people who keep their life in Notion. The
 
 ## Next candidates
 1. Calendar events next to tasks in Today and the calendar (EventKit).
-2. This Evening section and a Someday list.
 3. Menu-bar mini window listing today's tasks, with quick complete.
-4. Reminders relative to the due time ("30 min before") and several reminders per task.
-5. Markdown rendering in descriptions.
+4. Several reminders per task.

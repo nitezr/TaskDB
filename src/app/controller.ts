@@ -920,11 +920,12 @@ function instanceName(): string {
 }
 
 function withProjectDefaults(p: Project): Project {
-  const defaults: Pick<Project, "emoji" | "favorite" | "parentId" | "sections"> = {
+  const defaults: Pick<Project, "emoji" | "favorite" | "parentId" | "sections" | "notes"> = {
     emoji: null,
     favorite: false,
     parentId: null,
     sections: [],
+    notes: null,
   };
   return { ...defaults, ...p };
 }
