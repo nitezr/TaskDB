@@ -4,9 +4,11 @@ on:
   push:
     branches: [main, "claude/**"]
     tags: ["v*"]
+    # Docs and the website never need a build.
+    paths-ignore: ["**.md", "docs/**", "site/**"]
   workflow_dispatch:
 
-# macOS minutes are expensive: a newer push cancels the older build on the same branch.
+# A newer run cancels the older one on the same branch.
 concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
@@ -24,8 +26,11 @@ jobs:
       - run: npm run typecheck
       - run: npm test
 
+  # macOS minutes count 10x on a private repo, so the DMG builds only on demand
+  # (Actions › Build macOS DMG › Run workflow) or for a v* release tag. Pushes run tests only.
   dmg:
     needs: test
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
