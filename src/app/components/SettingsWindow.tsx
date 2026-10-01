@@ -471,12 +471,14 @@ function ColumnsSection() {
     <div className="column-row" key={which}>
       <div className="grow">
         <div className="column-name">{label}</div>
-        <div className={`small ${info[which].kind === "unsupported" || info[which].kind === "missing" ? "error-text" : "muted"}`}>{info[which].text}</div>
-        {info[which].problem && <div className="small error-text">{info[which].problem}</div>}
+        <div className={`small ${info[which].kind === "unsupported" || info[which].kind === "missing" ? "warn-text" : "muted"}`}>{info[which].text}</div>
+        {info[which].problem && <div className="small column-hint">{info[which].problem}</div>}
       </div>
-      <button className="ghost" disabled={busy} onClick={() => (picking === which ? setPicking(null) : open(which))}>
-        {info[which].kind === "relation" ? "Change…" : "Link to a database…"}
-      </button>
+      {info[which].kind !== "missing" && (
+        <button className="ghost" disabled={busy} onClick={() => (picking === which ? setPicking(null) : open(which))}>
+          {info[which].kind === "relation" ? "Change…" : "Link to a database…"}
+        </button>
+      )}
     </div>
   );
 
@@ -484,8 +486,8 @@ function ColumnsSection() {
     <>
       <h4>Project and Person</h4>
       <p className="caption" style={{ marginTop: 0 }}>
-        TaskDB keeps everything in one database. The Project and Person columns can be a select, a multi-select, or linked to your own Projects and People
-        databases; TaskDB shows whatever they hold.
+        Your tasks live in one database, TaskDB Tasks. Its Project and Person columns can be simple selects, or link to Projects and People databases you
+        already have. If they link, Notion also needs those databases shared with TaskDB so it can read the names.
       </p>
       <div className="column-card">
         {row("project", "Project")}

@@ -102,8 +102,10 @@ export async function upgradeWorkspace(client: NotionClient, ids: WorkspaceIds):
       added.push(...Object.keys(missing));
     }
   };
-  // Existing columns are never changed, so a Project or Person column the user linked stays linked.
-  await ensure(ids.tasksDataSourceId, { ...taskProperties(), ...taskSelfRelations(ids.tasksDataSourceId) });
+  // Project and Person are never added here: Notion hides a linked column from TaskDB until its
+  // database is shared, and adding one by the same name would shadow the user's own column.
+  const { [P.projectId]: _project, [P.person]: _person, ...wanted } = taskProperties();
+  await ensure(ids.tasksDataSourceId, { ...wanted, ...taskSelfRelations(ids.tasksDataSourceId) });
   return added;
 }
 

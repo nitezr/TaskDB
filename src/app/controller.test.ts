@@ -13,6 +13,8 @@ const title = (s: string) => ({ title: [{ plain_text: s }] });
 function setup(opts: { trialStart?: number; lsResponse?: unknown; signIn?: Record<string, string> } = {}) {
   const notion = new FakeNotion();
   notion.minute = Date.now();
+  // A workspace TaskDB created: Project and Person start as selects.
+  notion.schemas.set("ds", { Project: { type: "select", select: { options: [] } }, Person: { type: "select", select: { options: [] } } });
   const secure = new Map<string, string>();
   if (opts.trialStart !== undefined) secure.set("trial-start", String(opts.trialStart));
   const platform: Platform = {
@@ -186,6 +188,15 @@ describe("AppController", () => {
     await ready(app);
     expect(Object.keys(notion.schemas.get("ds") ?? {})).toEqual(expect.arrayContaining(["Notes", "Section", "Parent item", "Project", "Person"]));
     expect(app.columnInfo().project.kind).toBe("select");
+  });
+
+  it("never adds its own Project column when Notion hides a linked one", async () => {
+    const { app, notion } = setup();
+    notion.schemas.set("ds", {}); // a relation to an unshared database is left out of the API
+    await ready(app);
+    expect(notion.schemas.get("ds")).not.toHaveProperty("Project");
+    expect(app.columnInfo().project.text).toBe("Not visible to TaskDB yet");
+    expect(app.columnInfo().project.problem).toMatch(/Connections/);
   });
 
   it("reorders and nests projects by drag, and refuses to nest a project in itself", async () => {

@@ -133,6 +133,10 @@ export class Columns {
     if (this.project.kind === "rich_text" || this.project.kind === "people") this.project = { ...this.project, kind: "unsupported" };
     this.person = describeColumn(PERSON_COLUMN, props[PERSON_COLUMN]);
     await Promise.all([this.loadProjects(client), this.loadPeople(client)]);
+    // Notion leaves a relation column out of the API entirely while the database it links to
+    // isn't shared with TaskDB, so "missing" almost always means "not shared yet".
+    if (this.project.kind === "missing") this.problems.project = hiddenHint("Project");
+    if (this.person.kind === "missing") this.problems.person = hiddenHint("Person");
     return true;
   }
 
@@ -316,7 +320,7 @@ export class Columns {
       case "rich_text":
         return "Text";
       case "missing":
-        return "Missing";
+        return "Not visible to TaskDB yet";
       default:
         return `Not supported (${col.type})`;
     }
@@ -364,6 +368,10 @@ export async function titlePropertyOf(client: NotionClient, dataSourceId: string
   const name = Object.entries(ds.properties ?? {}).find(([, v]: [string, any]) => v?.type === "title")?.[0] ?? "Name";
   titleProps.set(dataSourceId, name);
   return name;
+}
+
+function hiddenHint(column: string): string {
+  return `Notion hides the ${column} column from TaskDB until TaskDB can open the database it links to. In Notion, open that database (e.g. your ${column === "Project" ? "Projects" : "People"} database) › ••• › Connections › add TaskDB, then click Refresh from Notion.`;
 }
 
 function shareHint(column: string, e: unknown): string {

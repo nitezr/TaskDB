@@ -4075,3 +4075,11 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 .db-list button:hover {
   background: var(--accent-soft, rgba(0, 0, 0, 0.06));
 }
+.warn-text {
+  color: #c27c0e;
+}
+.column-hint {
+  margin-top: 4px;
+  color: var(--muted);
+  line-height: 1.4;
+}
