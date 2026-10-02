@@ -146,7 +146,7 @@ export class Columns {
     if (this.project.kind !== "relation" || !this.project.dataSourceId) return;
     try {
       const ds: any = await client.request("GET", `/data_sources/${this.project.dataSourceId}`);
-      this.linkedTitles.project = plain(ds.title) || "Projects";
+      this.linkedTitles.project = await dataSourceTitle(client, ds);
       this.linkedProjectProps = Object.fromEntries(Object.entries(ds.properties ?? {}).map(([k, v]: [string, any]) => [k, v?.type ?? ""]));
       this.linkedProjectPages = await queryAll(client, this.project.dataSourceId);
       this.linkedProjects = this.linkedProjectPages.map((p) => ({
@@ -165,7 +165,7 @@ export class Columns {
     try {
       if (this.person.kind === "relation" && this.person.dataSourceId) {
         const ds: any = await client.request("GET", `/data_sources/${this.person.dataSourceId}`);
-        this.linkedTitles.person = plain(ds.title) || "People";
+        this.linkedTitles.person = await dataSourceTitle(client, ds);
         this.people = new Map((await queryAll(client, this.person.dataSourceId)).map((p) => [p.id, titleOfPage(p) || "Untitled"]));
       } else if (this.person.kind === "people") {
         const users: any[] = [];
@@ -346,6 +346,20 @@ export class Columns {
       /* start fresh */
     }
     return c;
+  }
+}
+
+/** A data source's own title can be empty; the database around it carries the name you see in Notion. */
+async function dataSourceTitle(client: NotionClient, ds: any): Promise<string | null> {
+  const own = plain(ds.title) || (typeof ds.name === "string" ? ds.name : "");
+  if (own) return own;
+  const dbId = ds.parent?.database_id ?? ds.database_parent?.database_id;
+  if (!dbId) return null;
+  try {
+    const db: any = await client.request("GET", `/databases/${dbId}`);
+    return plain(db.title) || null;
+  } catch {
+    return null;
   }
 }
 
