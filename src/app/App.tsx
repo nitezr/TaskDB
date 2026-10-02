@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { hasIcon, ProjectIcon } from "./components/ProjectIcon";
 import { addDays, formatDue, hasTime, parseDue, startOfDay, toDateStr, formatDuration } from "../core/dates";
 import type { Priority, Task, TaskFields } from "../types";
 import { BoardView } from "./components/BoardView";
@@ -371,7 +372,7 @@ function Main() {
         { label: "Inbox", icon: <I.inbox />, onClick: () => updateMany(ids, { projectId: null, section: null }, "Moved to Inbox", <InboxIcon size={13} />) },
         ...app.projectTree().map(({ project, depth }) => ({
           label: `${"   ".repeat(depth)}${project.name}`,
-          icon: project.emoji ?? "#",
+          icon: hasIcon(project) ? <ProjectIcon project={project} size={13} /> : "#",
           onClick: () => updateMany(ids, { projectId: project.id, section: null }, `Moved to ${project.name}`, <FolderIcon size={13} />),
         })),
         ...(sections.length && !many

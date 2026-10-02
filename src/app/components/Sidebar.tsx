@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { hasIcon, ProjectIcon } from "./ProjectIcon";
 import { askConfirm } from "../confirm";
 import { countFor, sameView, type View } from "../display";
 import { useApp } from "../hooks";
@@ -142,6 +143,7 @@ export function Sidebar(p: Props) {
       { separator: true },
       ...options.map(({ project, depth }) => ({
         label: `${"   ".repeat(depth)}${project.emoji ? project.emoji + " " : ""}${project.name}`,
+        ...(project.iconUrl && !project.emoji ? { icon: <ProjectIcon project={project} size={13} /> } : {}),
         icon: proj.parentId === project.id ? <I.check /> : "",
         onClick: () => move(proj.id, project.id, null),
       })),
@@ -218,8 +220,8 @@ export function Sidebar(p: Props) {
   );
 
   const projectIcon = (proj: Project, isParent: boolean) =>
-    proj.emoji ? (
-      <span className="emoji">{proj.emoji}</span>
+    hasIcon(proj) ? (
+      <ProjectIcon project={proj} size={16} />
     ) : isParent ? (
       <FolderIcon className="folder" />
     ) : (

@@ -247,6 +247,8 @@ describe("AppController", () => {
     expect(app.tasks()[0]).toMatchObject({ projectId: wafa.id, person: "Amelia" });
     expect(app.people()).toContain("Amelia");
     expect(app.columnInfo().project.text).toBe("Linked to “Products”");
+    // TaskDB's own project columns are added to the linked database, never changing existing ones.
+    expect(Object.keys(notion.schemas.get("products")!)).toEqual(expect.arrayContaining(["Notes", "Order", "Parent project", "Sections", "Favorite"]));
 
     // Notes live in the linked page (it has a Notes property); nesting stays on this Mac.
     await app.updateProject(wafa.id, { notes: "Ship v2", parentId: null });
@@ -268,6 +270,34 @@ describe("AppController", () => {
     await settle();
     expect(notion.pages.get(wafa.id)!.in_trash).toBeFalsy();
     expect(app.projects).toEqual([]);
+  });
+
+  it("re-reads every task once a hidden linked column becomes visible", async () => {
+    const { app, notion } = setup();
+    notion.titles.set("products", "Products");
+    notion.schemas.set("products", { Name: { type: "title", title: {} } });
+    const wafa = notion.addPage({ Name: title("WAFA") }, "products");
+    notion.schemas.set("ds", {}); // Products not shared yet: Notion hides the Project column
+    notion.addPage({ [P.title]: title("Ship it"), Project: { relation: [{ id: wafa.id }] } });
+    // The fake still returns the value on pages; hide it like Notion does.
+    const hidden = notion.fetch;
+    notion.fetch = async (url, init) => {
+      const res = await hidden(url, init);
+      if (!notion.schemas.get("ds")?.Project && url.includes("/query")) {
+        const body = await res.clone().json();
+        for (const p of body.results ?? []) delete p.properties.Project;
+        return new Response(JSON.stringify(body), { status: 200 });
+      }
+      return res;
+    };
+    await ready(app);
+    expect(app.tasks()[0]?.projectId).toBeNull();
+
+    notion.schemas.set("ds", { Project: { type: "relation", relation: { data_source_id: "products" } } }); // shared now
+    const refreshing = app.refreshProjects();
+    await settle();
+    await refreshing;
+    expect(app.tasks()[0]?.projectId).toBe(wafa.id);
   });
 
   it("links a column to another database and keeps the old one as a backup", async () => {

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { hasIcon, ProjectIcon } from "./ProjectIcon";
 import { deadlineLabel, dueLabel, formatDuration, hasTime, parseDue, toDateStr, toLocalIso } from "../../core/dates";
 import { parseQuickAdd } from "../../core/quickAdd";
 import { parseRule } from "../../core/recurrence";
@@ -148,7 +149,7 @@ export function DetailPeek({ id, onClose, onOpen, prevId, nextId, onComplete }: 
             </button>
           ) : (
             <span className="crumb">
-              {project?.emoji ? <span>{project.emoji}</span> : <HashIcon size={11} />} {project ? project.name : "Inbox"}
+              {project && hasIcon(project) ? <ProjectIcon project={project} size={12} /> : <HashIcon size={11} />} {project ? project.name : "Inbox"}
               {task.section ? ` / ${task.section}` : ""}
             </span>
           )}

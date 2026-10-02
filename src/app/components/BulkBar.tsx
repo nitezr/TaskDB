@@ -1,4 +1,5 @@
 import type { Priority } from "../../types";
+import { hasIcon, ProjectIcon } from "./ProjectIcon";
 import { useApp } from "../hooks";
 import { CalendarSmallIcon, CheckCircleIcon, CloseIcon, FlagIcon, FolderIcon, I, TrashIcon } from "../icons";
 import { anchorOf, useMenu } from "../ui";
@@ -42,7 +43,7 @@ export function BulkBar(p: {
             { label: "Inbox", icon: <I.inbox />, onClick: () => p.onMove(null) },
             ...app.projectTree().map(({ project, depth }) => ({
               label: `${"   ".repeat(depth)}${project.name}`,
-              icon: project.emoji ?? "#",
+              icon: hasIcon(project) ? <ProjectIcon project={project} size={13} /> : "#",
               onClick: () => p.onMove(project.id),
             })),
           ])

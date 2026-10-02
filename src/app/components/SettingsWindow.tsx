@@ -414,7 +414,7 @@ function NotionTab() {
       {app.lastError && <p className="small error-text">Last error: {app.lastError}</p>}
       <ColumnsSection />
       <div className="row">
-        <button className="ghost" onClick={() => void app.refreshProjects()}>
+        <button className="ghost" onClick={() => void app.refreshProjects({ rereadTasks: true })}>
           Refresh from Notion
         </button>
         <span className="grow" />

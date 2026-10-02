@@ -577,15 +577,21 @@ export class AppController {
   // ---- Projects ----
 
   /** Re-reads the Project and Person columns and whatever they link to. */
-  async refreshProjects(): Promise<void> {
+  async refreshProjects(opts: { rereadTasks?: boolean } = {}): Promise<void> {
     if (!this.client || !this.tasksDataSourceId) return;
+    const shape = () => JSON.stringify([this.columns.project.kind, this.columns.project.dataSourceId, this.columns.person.kind, this.columns.person.dataSourceId]);
+    const before = shape();
     try {
       await this.columns.refresh(this.client, this.tasksDataSourceId);
       this.lastError = this.columns.problems.project ?? this.columns.problems.person ?? null;
+      if (!this.columns.problems.project) await this.projectSource?.ensureDetailColumns();
     } catch (e) {
       this.lastError = e instanceof Error ? e.message : String(e);
     }
     this.syncProjects();
+    // A column that changed type or became visible (e.g. its database was just shared) changes
+    // every task's project or person, but not their edit times, so re-read them all.
+    if ((opts.rereadTasks || shape() !== before) && this.engine && this.scheduler?.running) await this.engine.reconcile();
   }
 
   /** Rebuilds the project list from the last column refresh (no requests). */

@@ -1,4 +1,5 @@
 import { deadlineLabel, dueDay, dueLabel, formatDuration, hasTime, parseDue, toDateStr } from "../../core/dates";
+import { ProjectIcon } from "./ProjectIcon";
 
 const timeLabel = (due: string) => parseDue(due).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 import type { Task } from "../../types";
@@ -121,7 +122,7 @@ export function TaskItem(p: Props) {
   const projectLabel = project && (
     <span className="task-project">
       {p.variant === "card" && <span className={`hash t-${project.color}`}>#</span>}
-      {project.emoji && <span>{project.emoji}</span>}
+      <ProjectIcon project={project} size={12} />
       {project.name}
       {p.variant === "row" && <span className={`dot c-${project.color}`} />}
     </span>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { hasIcon, ProjectIcon } from "./ProjectIcon";
 import { dueLabel } from "../../core/dates";
 import type { View } from "../display";
 import { useApp } from "../hooks";
@@ -40,7 +41,7 @@ export function CommandPalette({
     ];
     for (const [v, label, icon] of nav) if (has(label)) out.push({ label, kind: "View", icon, run: () => onNavigate(v) });
     for (const { project } of app.projectTree())
-      if (has(project.name)) out.push({ label: project.name, kind: "Project", icon: project.emoji ?? (app.projects.some((x) => x.parentId === project.id) ? <FolderIcon /> : <span className={`t-${project.color}`}>#</span>), run: () => onNavigate({ kind: "project", id: project.id }) });
+      if (has(project.name)) out.push({ label: project.name, kind: "Project", icon: hasIcon(project) ? <ProjectIcon project={project} size={13} /> : (app.projects.some((x) => x.parentId === project.id) ? <FolderIcon /> : <span className={`t-${project.color}`}>#</span>), run: () => onNavigate({ kind: "project", id: project.id }) });
     for (const f of app.filters()) if (has(f.name)) out.push({ label: f.name, kind: "Filter", icon: <FilterIcon />, run: () => onNavigate({ kind: "filter", id: f.id }) });
     for (const l of app.labels()) if (has(l)) out.push({ label: l, kind: "Label", icon: <LabelIcon />, run: () => onNavigate({ kind: "label", name: l }) });
     for (const a of actions) if (has(a.label)) out.push(a);

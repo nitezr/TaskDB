@@ -9,6 +9,8 @@ export interface Project {
   order: number;
   /** Shown before the name; stored as the Notion page icon for linked projects. */
   emoji: string | null;
+  /** A linked page's image icon (custom emoji, upload or link), when it has no plain emoji. */
+  iconUrl?: string | null;
   favorite: boolean;
   /** Parent project for nesting (e.g. "Work" → "Acme Launch"). */
   parentId: string | null;
@@ -49,6 +51,7 @@ export function projectFromPage(page: NotionPage): Project {
     archived: Boolean(p[PP.archived[0]]?.checkbox),
     order: p[PP.order[0]]?.number ?? 0,
     emoji: page.icon?.type === "emoji" ? (page.icon.emoji ?? null) : null,
+    iconUrl: iconUrlOf(page),
     favorite: Boolean(p[PP.favorite[0]]?.checkbox),
     parentId: p[PP.parentId[0]]?.relation?.[0]?.id ?? null,
     sections: plain(p[PP.sections[0]]?.rich_text)
@@ -56,6 +59,25 @@ export function projectFromPage(page: NotionPage): Project {
       .map((s) => s.trim())
       .filter(Boolean),
     notes: plain(p[PP.notes[0]]?.rich_text) || null,
+  };
+}
+
+export function iconUrlOf(page: NotionPage): string | null {
+  const icon: any = page.icon;
+  if (!icon) return null;
+  return icon.external?.url ?? icon.file?.url ?? icon.custom_emoji?.url ?? null;
+}
+
+/** Columns TaskDB adds to a linked Projects database so the sidebar's details live in Notion. */
+export function projectDetailColumns(parentDataSourceId: string): Record<string, unknown> {
+  return {
+    [PP.color[0]]: { select: { options: ["gray", "brown", "orange", "yellow", "green", "blue", "purple", "pink", "red"].map((c) => ({ name: c, color: c === "gray" ? "gray" : c })) } },
+    [PP.archived[0]]: { checkbox: {} },
+    [PP.order[0]]: { number: {} },
+    [PP.favorite[0]]: { checkbox: {} },
+    [PP.parentId[0]]: { relation: { data_source_id: parentDataSourceId, type: "single_property", single_property: {} } },
+    [PP.sections[0]]: { rich_text: {} },
+    [PP.notes[0]]: { rich_text: {} },
   };
 }
 
@@ -123,7 +145,7 @@ export class ProjectSource {
       const pages = this.columns.linkedProjectPages;
       base = pages.length
         ? pages.map(projectFromPage)
-        : this.columns.linkedProjects.map((p) => ({ ...projectFromPage({ id: p.id, last_edited_time: "", properties: {} }), name: p.name, emoji: p.emoji }));
+        : this.columns.linkedProjects.map((p) => ({ ...projectFromPage({ id: p.id, last_edited_time: "", properties: {} }), name: p.name, emoji: p.emoji, iconUrl: p.iconUrl ?? null }));
     } else if (col.kind === "select" || col.kind === "multi_select") {
       base = col.options.map((o, i) => ({
         id: o.id,
@@ -217,6 +239,36 @@ export class ProjectSource {
     } else {
       this.saveLocal(id, { hidden: true });
     }
+  }
+
+  /**
+   * Adds TaskDB's project columns (Color, Order, Parent project…) to a linked Projects
+   * database that lacks them, then moves details kept on this Mac into them.
+   * Existing columns are never changed. Returns the names added.
+   */
+  async ensureDetailColumns(): Promise<string[]> {
+    const col = this.columns.project;
+    if (col.kind !== "relation" || !col.dataSourceId) return [];
+    const have = this.columns.linkedProjectProps;
+    const wanted = projectDetailColumns(col.dataSourceId);
+    const missing = Object.fromEntries(Object.entries(wanted).filter(([name]) => !(name in have)));
+    if (!Object.keys(missing).length) return [];
+    await this.client.request("PATCH", `/data_sources/${col.dataSourceId}`, { properties: missing });
+    for (const [name, def] of Object.entries(missing)) this.columns.linkedProjectProps[name] = Object.keys(def as object)[0]!;
+    // Details set on this Mac move into Notion, so every Mac sees the same sidebar.
+    const local = this.local();
+    for (const [id, meta] of Object.entries(local)) {
+      if (!this.columns.linkedProjects.some((p) => p.id === id)) continue;
+      const properties: Record<string, unknown> = {};
+      for (const key of Object.keys(PP) as Detail[]) {
+        if (meta[key] !== undefined && PP[key][0] in missing) properties[PP[key][0]] = detailProperty(key, meta[key]);
+      }
+      if (Object.keys(properties).length) {
+        const page: NotionPage = await this.client.request("PATCH", `/pages/${id}`, { properties });
+        this.columns.linkedProjectPages = this.columns.linkedProjectPages.map((p) => (p.id === id ? page : p));
+      }
+    }
+    return Object.keys(missing);
   }
 
   /** Projects hidden with Delete; shown again by Settings › Notion. */

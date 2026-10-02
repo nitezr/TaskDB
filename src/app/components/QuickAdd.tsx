@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { hasIcon, ProjectIcon } from "./ProjectIcon";
 import { deadlineLabel, dueLabel, formatDuration } from "../../core/dates";
 import { parseQuickAdd } from "../../core/quickAdd";
 import type { TaskFields } from "../../types";
@@ -226,7 +227,7 @@ export function QuickAdd({ defaults = {}, onDone, variant, onAdded }: Props) {
               ...app.projectTree().flatMap(({ project, depth }) => [
                 {
                   label: `${"   ".repeat(depth)}${project.name}`,
-                  icon: project.emoji ?? <HashIcon size={12} />,
+                  icon: hasIcon(project) ? <ProjectIcon project={project} size={12} /> : <HashIcon size={12} />,
                   onClick: () => setDest({ projectId: project.id, section: null }),
                 },
                 ...project.sections.map((sec) => ({
@@ -239,7 +240,7 @@ export function QuickAdd({ defaults = {}, onDone, variant, onAdded }: Props) {
           }
           title="Where the task goes (or type #project /section)"
         >
-          {destProject?.emoji ? <span>{destProject.emoji}</span> : destProject ? <HashIcon size={11} /> : <InboxIcon size={12} />}
+          {destProject && hasIcon(destProject) ? <ProjectIcon project={destProject} size={12} /> : destProject ? <HashIcon size={11} /> : <InboxIcon size={12} />}
           {parsed.project ?? destProject?.name ?? "Inbox"}
           {(parsed.section ?? dest.section) && <span className="muted"> / {parsed.section ?? dest.section}</span>}
           <ChevronDownIcon size={10} />

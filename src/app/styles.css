@@ -4083,3 +4083,10 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   color: var(--muted);
   line-height: 1.4;
 }
+.project-img {
+  display: inline-block;
+  object-fit: cover;
+  border-radius: 3px;
+  vertical-align: -2px;
+  flex: none;
+}

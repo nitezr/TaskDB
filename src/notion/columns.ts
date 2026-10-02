@@ -30,6 +30,7 @@ export interface LinkedEntry {
   id: string;
   name: string;
   emoji: string | null;
+  iconUrl?: string | null;
 }
 
 export const PROJECT_COLUMN = "Project";
@@ -153,6 +154,7 @@ export class Columns {
         id: p.id,
         name: titleOfPage(p) || "Untitled",
         emoji: p.icon?.type === "emoji" ? (p.icon.emoji ?? null) : null,
+        iconUrl: (p.icon as any)?.external?.url ?? (p.icon as any)?.file?.url ?? (p.icon as any)?.custom_emoji?.url ?? null,
       }));
     } catch (e) {
       this.problems.project = shareHint("Project", e);

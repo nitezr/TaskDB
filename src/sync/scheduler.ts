@@ -25,6 +25,8 @@ export class SyncScheduler {
   private pushTimer: Timer | null = null;
   private reconcileTimer: Timer | null = null;
   private lastPull = 0;
+  /** True between start() and stop(). */
+  running = false;
 
   constructor(
     private readonly engine: SyncEngine,
@@ -32,6 +34,7 @@ export class SyncScheduler {
   ) {}
 
   start(): void {
+    this.running = true;
     void this.run(() => this.engine.reconcile());
     this.lastPull = this.now();
     this.reconcileTimer = setInterval(() => void this.run(() => this.engine.reconcile()), RECONCILE_MS);
@@ -39,6 +42,7 @@ export class SyncScheduler {
   }
 
   stop(): void {
+    this.running = false;
     for (const t of [this.pullTimer, this.pushTimer]) if (t) clearTimeout(t);
     if (this.reconcileTimer) clearInterval(this.reconcileTimer);
   }
