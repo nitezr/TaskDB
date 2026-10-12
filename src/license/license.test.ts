@@ -81,3 +81,12 @@ describe("LemonSqueezy", () => {
     expect((await ls.validate(rec(), T0)).status).toBe("disabled");
   });
 });
+
+describe("owner key", () => {
+  it("unlocks without Lemon Squeezy and never expires offline", async () => {
+    const { isOwnerKey, OWNER_INSTANCE, computeState } = await import("./license");
+    expect(await isOwnerKey("TASKDB-OWNER-NOPE")).toBe(false);
+    const rec = { key: "x", instanceId: OWNER_INSTANCE, status: "active" as const, expiresAt: null, lastValidatedAt: 0 };
+    expect(computeState(0, rec, Date.now())).toEqual({ kind: "licensed", expiresAt: null });
+  });
+});

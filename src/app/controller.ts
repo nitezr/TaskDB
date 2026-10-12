@@ -24,7 +24,9 @@ import {
   canEdit,
   computeState,
   LemonSqueezy,
+  isOwnerKey,
   LicenseError,
+  OWNER_INSTANCE,
   type LicenseRecord,
   type LicenseState,
   VALIDATE_EVERY_MS,
@@ -933,19 +935,23 @@ export class AppController {
   }
 
   async activateLicense(key: string): Promise<void> {
+    if (await isOwnerKey(key)) {
+      await this.saveLicense({ key: key.trim(), instanceId: OWNER_INSTANCE, status: "active", expiresAt: null, lastValidatedAt: Date.now() });
+      return;
+    }
     const ls = new LemonSqueezy(this.platform.fetch);
     await this.saveLicense(await ls.activate(key, instanceName()));
   }
 
   async deactivateLicense(): Promise<void> {
     if (!this.license) return;
-    await new LemonSqueezy(this.platform.fetch).deactivate(this.license);
+    if (this.license.instanceId !== OWNER_INSTANCE) await new LemonSqueezy(this.platform.fetch).deactivate(this.license);
     await this.saveLicense(null);
   }
 
   /** Daily check so renewals, refunds and lapsed subscriptions are picked up. */
   async revalidate(force = false): Promise<void> {
-    if (!this.license) return;
+    if (!this.license || this.license.instanceId === OWNER_INSTANCE) return;
     if (!force && Date.now() - this.license.lastValidatedAt < VALIDATE_EVERY_MS) return;
     try {
       await this.saveLicense(await new LemonSqueezy(this.platform.fetch).validate(this.license));

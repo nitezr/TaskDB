@@ -26,7 +26,22 @@ export type LicenseState =
   | { kind: "offline"; daysLeft: number }
   | { kind: "expired"; reason: "trial" | "license" | "offline" };
 
+/**
+ * SHA-256 of the owner's key. It unlocks TaskDB without Lemon Squeezy (for the developer's own
+ * Macs and before the store exists); only the hash ships, so the key can't be read from the app.
+ */
+const OWNER_KEY_SHA256 = "6ba725146f89e4f82a0a5dfd96dedcdc4ab13c091c3ec27f46e5db694d7c6717";
+export const OWNER_INSTANCE = "owner";
+
+export async function isOwnerKey(key: string): Promise<boolean> {
+  const bytes = new TextEncoder().encode(key.trim().toUpperCase());
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return hex === OWNER_KEY_SHA256;
+}
+
 export function computeState(trialStartedAt: number, license: LicenseRecord | null, now: number): LicenseState {
+  if (license?.instanceId === OWNER_INSTANCE) return { kind: "licensed", expiresAt: null };
   if (license) {
     const lapsed = license.expiresAt !== null && Date.parse(license.expiresAt) <= now;
     if (license.status === "expired" || license.status === "disabled" || lapsed) return { kind: "expired", reason: "license" };
