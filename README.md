@@ -2,7 +2,7 @@
 
 # TaskDB
 
-**Todoist-fast task management for the Mac, on top of your own Notion.**
+**Fast, keyboard-first task management for the Mac, on top of your own Notion.**
 
 Capture a task in one typed line, plan your week on lists, boards and a calendar, and move
 through your day without reaching for the mouse, while every task stays in a Notion database you
@@ -20,7 +20,6 @@ own.
 - **Deadlines, durations and smart repeats** that Notion can't do on its own.
 - **Today, Upcoming, This Evening and Someday**, so nothing with a date or deadline slips.
 - **12 themes**, light and dark mode, and a comfortable or compact layout.
-- **Import from Todoist** in one step.
 
 ## Features
 
@@ -91,8 +90,6 @@ Press `?` in the app for the full list.
 Sign in with Notion and TaskDB sets up its database for you, or paste a Notion secret if you
 prefer. A short tour and a practice project teach each feature by doing it.
 
-![Welcome to TaskDB: Connect with Notion](docs/images/welcome.png)
-
 ## Your data
 
 - Every task is a page in a Notion database in your own workspace. Edit it in TaskDB or in Notion; changes flow both ways.
@@ -132,4 +129,4 @@ npm run typecheck
 
 Every screenshot above uses made-up sample data.
 
-TaskDB is not affiliated with or endorsed by Notion or Todoist.
+TaskDB is not affiliated with or endorsed by Notion.
